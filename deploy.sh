@@ -14,7 +14,7 @@ cd .output/public
 touch .nojekyll
 
 git init
-git remote add origin https://github.com/Vishwas1/idApp-vue-demo.git
+git remote add origin https://github.com/HarshithaK61/ui-sdk.git
 git checkout -b gh-pages
 git add .
 git commit -m "Clean deploy without worker"
@@ -22,4 +22,4 @@ git push -f origin gh-pages
 
 # Step 4: Return
 cd -
-echo "Deployed to https://vishwas1.github.io/idApp-vue-demo/"
+echo "Deployed to https://harshithak61.github.io/ui-sdk/"

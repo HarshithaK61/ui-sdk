@@ -33,8 +33,8 @@ import { IdentityProviderIdentityStatus } from './types';
 // We dynamically resolve this as the hosted server can run at different
 // locations.
 export function getRedirectUri() {
-    if(window.location.href.includes('idApp-vue-demo')) {
-        return window.location.origin + '/idApp-vue-demo/idp-callback';
+    if(window.location.href.includes('ui-sdk')) {
+        return window.location.origin + '/ui-sdk/idp-callback';
     } else {
         return window.location.origin + '/idp-callback';
     }
