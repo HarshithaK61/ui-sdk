@@ -1,0 +1,1 @@
+import{a as r,b as s,o,r as t}from"./DMbhhi1-.js";const n={};function a(e,c){return o(),s("th",null,[t(e.$slots,"default")])}const _=Object.assign(r(n,[["render",a]]),{__name:"ProseTh"});export{_ as default};

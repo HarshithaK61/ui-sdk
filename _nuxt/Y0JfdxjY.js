@@ -1,0 +1,1 @@
+import{a as o,b as r,o as s,r as n}from"./DMbhhi1-.js";const t={};function a(e,c){return s(),r("ol",null,[n(e.$slots,"default")])}const _=Object.assign(o(t,[["render",a]]),{__name:"ProseOl"});export{_ as default};

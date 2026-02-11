@@ -1,0 +1,1 @@
+import{a,b as r,o as s,r as o}from"./DMbhhi1-.js";const t={};function n(e,c){return s(),r("table",null,[o(e.$slots,"default")])}const _=Object.assign(a(t,[["render",n]]),{__name:"ProseTable"});export{_ as default};
