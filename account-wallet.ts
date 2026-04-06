@@ -20,8 +20,23 @@ export class AccountWalletWC {
   private approval: any
   public uri: string = "";
   public onSessionApproved?: (session: any) => void;
+
+  private trace(stage: string, payload: Record<string, unknown> = {}) {
+    const now = Date.now();
+    console.info(
+      "[WC_TRACE]",
+      JSON.stringify({
+        side: "dapp",
+        stage,
+        timestampIso: new Date(now).toISOString(),
+        timestampMs: now,
+        ...payload,
+      })
+    );
+  }
   
   async initClient() {
+    this.trace("init_client_start");
     this.wc_client = await SignClient.init({
       projectId,
       metadata: {
@@ -67,6 +82,7 @@ export class AccountWalletWC {
 
     this.printPairing()
     this.printSessions()
+    this.trace("init_client_done");
   }
 
   getListOfPairing(){
@@ -94,12 +110,14 @@ export class AccountWalletWC {
   async connect(chainId: string) {
     try {
       if (!this.wc_client) throw new Error("SDK not initialized");
+      this.trace("connect_start", { chainId });
 
       // Create pairing URI
       console.log("Before connecting...");
 
       const pendingRequest = this.wc_client.getPendingSessionRequests();
       console.log("Pending requests: ", pendingRequest);
+      this.trace("pending_session_requests", { count: Object.keys(pendingRequest || {}).length });
 
       this.printSessions()
       const existingPairing = this.printPairing()
@@ -109,13 +127,25 @@ export class AccountWalletWC {
       console.log('Using chainId for WC session proposal:', chainId)
       const namespace= {
          ccd: {
-            methods: [IDAppSdkWallectConnectMethods.CREATE_ACCOUNT],
+            methods: [
+              IDAppSdkWallectConnectMethods.CREATE_ACCOUNT,
+              IDAppSdkWallectConnectMethods.RECOVER_ACCOUNT,
+              "request_verifiable_presentation_v1",
+            ],
             chains: [chainId],
-            events: [IDAppSdkWallectConnectMethods.CREATE_ACCOUNT],
+            events: [
+              IDAppSdkWallectConnectMethods.CREATE_ACCOUNT,
+              IDAppSdkWallectConnectMethods.RECOVER_ACCOUNT,
+            ],
           }
       }
 
       console.log(JSON.stringify(namespace, null, 2))
+      this.trace("session_proposal_create", {
+        chainId,
+        methods: namespace.ccd.methods,
+        events: namespace.ccd.events,
+      });
       const { uri, approval } = await this.wc_client.connect({
         optionalNamespaces: {
           ...namespace
@@ -124,10 +154,15 @@ export class AccountWalletWC {
       });
       this.uri = uri
       console.log("Wallet connect URI: ", uri);
+      this.trace("connect_uri_created", { hasUri: Boolean(uri) });
       console.log("Waiting for approval...");
       approval().then((x: unknown) => {
         console.log("Session approved:", x);        
         this.session = x
+        this.trace("session_approved", {
+          topic: (x as any)?.topic,
+          expiry: (x as any)?.expiry,
+        });
       
         console.log('Session expires at:', this.formatExpiryIST(this.session.expiry));
         this.printPairing()
@@ -139,12 +174,14 @@ export class AccountWalletWC {
           this.onSessionApproved(this.session);
         }
       }).catch((e: unknown) => {
+        this.trace("session_rejected", { error: String(e) });
         console.log("Session rejected:", e);
         alert("Session rejected: " + e)
         ConcordiumIDAppPoup.closePopup()
       });
       return uri
     } catch (e) {
+      this.trace("connect_error", { error: String(e) });
       console.log(e)
     }
   }
@@ -217,13 +254,29 @@ export class AccountWalletWC {
         console.log('No session found to disconnect...')
       }
   }
-  async request(method: string = "custom_message", chainId: string, message: any) {
+  async request(method: string = "custom_message", chainId: string, message: any, traceId?: string) {
     console.log('Inside request method:', { chainId})
     if (!this.wc_client) throw new Error("SDK not initialized");
+    this.trace("request_start", {
+      method,
+      chainId,
+      traceId: traceId || null,
+      hasSession: Boolean(this.session),
+    });
 
     if (!this.session) {
-      this.session = this.getMostNewSession()
+      this.session = await this.waitForActiveSession()
       console.log('Retrived sessions being used... ' + this.session.topic)
+    }
+
+    const approvedMethods = this.session?.namespaces?.ccd?.methods || []
+    if (approvedMethods.length && !approvedMethods.includes(method)) {
+      this.trace("request_blocked_unapproved_method", {
+        method,
+        traceId: traceId || null,
+        approvedMethods,
+      });
+      throw new Error(`Method ${method} is not approved for this WalletConnect session`)
     }
 
     
@@ -236,7 +289,33 @@ export class AccountWalletWC {
         params: message,
       },
     });
+    this.trace("request_result_received", {
+      method,
+      traceId: traceId || null,
+      topic: this.session.topic,
+      resultType: typeof result,
+    });
     return result
+  }
+
+  private async waitForActiveSession(timeoutMs: number = 15000, pollIntervalMs: number = 250) {
+    const startedAt = Date.now()
+    this.trace("wait_for_active_session_start", { timeoutMs, pollIntervalMs });
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const active = this.getMostNewSession()
+      if (active) {
+        this.trace("wait_for_active_session_success", {
+          topic: active.topic,
+          elapsedMs: Date.now() - startedAt,
+        });
+        return active
+      }
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
+    }
+
+    this.trace("wait_for_active_session_timeout", { timeoutMs });
+    throw new Error("No active WalletConnect session found before timeout")
   }
 }
 

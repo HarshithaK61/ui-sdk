@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@concordium/id-app-sdk": "^0.1.5",
+    "@concordium/verification-web-ui": "^0.2.0",
     "@concordium/web-sdk": "^9.1.0",
     "@nuxt/content": "^3.4.0",
     "@nuxt/eslint": "^1.3.0",
@@ -30,8 +31,10 @@
     "@walletconnect/types": "^2.20.0",
     "better-sqlite3": "^12.0.0",
     "eslint": "^9.25.1",
+    "html5-qrcode": "^2.3.8",
     "nuxt": "^3.16.2",
     "vue": "^3.5.13",
+    "vue-qrcode-reader": "^5.7.3",
     "vue-router": "^4.5.0"
   },
   "devDependencies": {

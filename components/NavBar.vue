@@ -34,12 +34,20 @@ const idcLength = computed(() => {
     return idObjects.length
 })
 
+  const cacheBustedRoute = (path) => ({
+    path,
+    query: {
+      cb: Date.now().toString(),
+    },
+  })
+
   const links = [
     
-    { label: 'Enable Network ', to: '/enable-network-mainnet' },
-    { label: 'Enable Network (Testnet)', to: '/enable-network-testnet' },
-    { label: 'SDK Managed', to: '/sdk-managed' },
-    { label: 'Merchant Managed', to: '/merchant-managed' },
+    //{ label: 'Enable Network ', to: '/enable-network-mainnet' },
+    //{ label: 'Enable Network (Testnet)', to: '/enable-network-testnet' },
+    { label: 'SDK Managed', to: cacheBustedRoute('/sdk-managed') },
+    //{ label: 'Merchant Managed', to: '/merchant-managed' },
+    //{ label: 'ZKP', to: '/zkp' },
     // { label: 'Create ID', to: '/create-identity' },
     // { label: 'IDs (' + idLength.value + ')', to: '/your-ids' },
     // { label: 'Create Account', to: '/create-account' },

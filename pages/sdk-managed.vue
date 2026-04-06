@@ -24,9 +24,29 @@ import { ConcordiumVerificationWebUI } from '@concordium/verification-web-ui';
 import '@concordium/verification-web-ui/styles';
 import { useChallengePresentation } from "~/composables/useChallengePresentation";
 
+const route = useRoute();
+const router = useRouter();
+
 const isToggled = ref(false);
 const connected = ref(false);
 const sdk = ref<ConcordiumVerificationWebUI | null>(null);
+const isRequestInFlight = ref(false);
+
+const trace = (stage: string, payload: Record<string, unknown> = {}) => {
+  const now = Date.now();
+  console.info(
+    "[WC_TRACE]",
+    JSON.stringify({
+      side: "dapp-ui",
+      stage,
+      timestampIso: new Date(now).toISOString(),
+      timestampMs: now,
+      ...payload,
+    })
+  );
+};
+
+const createTraceId = () => `wc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 // Initialize challenge presentation composable
 const { requestChallengeFromBackend, verifyPresentationProof } = useChallengePresentation(sdk);
@@ -66,30 +86,93 @@ const initSDK = () => {
   });
 };
 
+const sendPresentationWithReadinessRetry = async (sessionData: any) => {
+  if (isRequestInFlight.value) {
+    trace("presentation_retry_skipped_inflight");
+    return;
+  }
+
+  isRequestInFlight.value = true;
+  try {
+    trace("presentation_retry_start", { topic: sessionData?.topic });
+    const maxAttempts = 4;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        trace("presentation_attempt_start", { attempt, maxAttempts, topic: sessionData?.topic });
+        // Give mobile wallet a small window to finish cold-start setup after approval.
+        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+        await handleChallengeAndPresentationRequest(sessionData);
+        trace("presentation_attempt_success", { attempt, topic: sessionData?.topic });
+        return;
+      } catch (error) {
+        lastError = error;
+        trace("presentation_attempt_error", {
+          attempt,
+          topic: sessionData?.topic,
+          error: String(error),
+        });
+        console.warn(`Presentation attempt ${attempt} failed`, error);
+      }
+    }
+
+    throw lastError || new Error("Failed to send presentation request");
+  } finally {
+    isRequestInFlight.value = false;
+    trace("presentation_retry_end");
+  }
+};
+
 // Step 2: Send presentation request to SDK
-const sendPresentationRequest = async (challengeData: any, sessionData: any) => {
+const sendPresentationRequest = async (challengeData: any, sessionData: any, traceId: string) => {
   if (!challengeData) {
     throw new Error("No challenge data available");
   }
+
+  trace("presentation_request_send", {
+    traceId,
+    challengeContext: challengeData?.context || null,
+    topic: sessionData?.topic || null,
+  });
+
+  const presentationRequest = {
+    ...challengeData?.presentationRequest,
+    __traceId: traceId,
+    metadata: {
+      traceId,
+      appName: "Concordium Merchant SDK",
+      description: "Merchant dApp using Concordium ID verification",
+      url: window.location.origin,
+      icons: [`${window.location.origin}/Concordium.png`],
+      ...(challengeData?.presentationRequest?.metadata || {}),
+    },
+  };
   
   // In SDK-managed mode, don't pass sessionTopic - let SDK use its internal session
   await sdk.value?.sendPresentationRequest(
-    challengeData?.presentationRequest,
+    presentationRequest,
     sessionData?.topic,
   );
+
+  trace("presentation_request_sent", { traceId });
 };
 
 // Orchestrate the challenge and presentation request flow
 const handleChallengeAndPresentationRequest = async (sessionData: any) => {
+  const traceId = createTraceId();
   try {
+    trace("challenge_request_start", { traceId, topic: sessionData?.topic });
     console.log(
       "handleChallengeAndPresentationRequest called with sessionData:",
       sessionData,
     );
 
     const challengeData = await requestChallengeFromBackend();
-    await sendPresentationRequest(challengeData, sessionData);
+    trace("challenge_request_done", { traceId, hasChallenge: Boolean(challengeData) });
+    await sendPresentationRequest(challengeData, sessionData, traceId);
   } catch (error) {
+    trace("challenge_or_presentation_error", { traceId, error: String(error) });
     console.error("Error in challenge/presentation flow:", error);
     // sdk.value?.closeModal();
   }
@@ -106,15 +189,13 @@ const handleSDKEvent = async (event: any) => {
       connected.value = true;
       console.log("Active session detected:", data);
       // Session already exists, request challenge and presentation
-      await handleChallengeAndPresentationRequest(data);
+      await sendPresentationWithReadinessRetry(data);
       break;
 
     case "session_approved":
       connected.value = true;
       console.log("Session approved!", data);
-      // New session approved, wait a moment for SDK to store session, then request challenge and presentation
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await handleChallengeAndPresentationRequest(data);
+      await sendPresentationWithReadinessRetry(data);
       break;
 
     case "presentation_received":
@@ -137,6 +218,16 @@ const handleSDKEvent = async (event: any) => {
 };
 
 onMounted(() => {
+  if (!route.query.cb) {
+    router.replace({
+      path: route.path,
+      query: {
+        ...route.query,
+        cb: Date.now().toString(),
+      },
+    });
+  }
+
   // Listen to SDK events
   window.addEventListener("verification-web-ui-event", handleSDKEvent);
 });

@@ -28,6 +28,23 @@ const isToggled = ref(false);
 const connected = ref(false);
 const sdk = ref<ConcordiumVerificationWebUI | null>(null);
 const accountWalletConnect = ref<AccountWalletWC>();
+const isRequestInFlight = ref(false);
+
+const trace = (stage: string, payload: Record<string, unknown> = {}) => {
+  const now = Date.now();
+  console.info(
+    "[WC_TRACE]",
+    JSON.stringify({
+      side: "dapp-ui",
+      stage,
+      timestampIso: new Date(now).toISOString(),
+      timestampMs: now,
+      ...payload,
+    })
+  );
+};
+
+const createTraceId = () => `wc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 // Initialize challenge presentation composable
 const { requestChallengeFromBackend, verifyPresentationProof } = useChallengePresentation(sdk);
@@ -54,11 +71,11 @@ const connectWalletMerchantProvided = async () => {
     accountWalletConnect.value = new AccountWalletWC();
 
     // Set up callback for when session is approved
-    accountWalletConnect.value.onSessionApproved = async (session) => {
+    accountWalletConnect.value.onSessionApproved = async (session: any) => {
       console.log("Session approved callback triggered:", session);
       connected.value = true;
       await sdk.value?.showModal("processing");
-      await handleChallengeAndPresentation(session);
+      await sendPresentationWithReadinessRetry(session);
     };
 
     await accountWalletConnect.value.initClient();
@@ -89,8 +106,46 @@ const connectWalletMerchantProvided = async () => {
   }
 };
 
+const sendPresentationWithReadinessRetry = async (sessionData: any) => {
+  if (isRequestInFlight.value) {
+    trace("presentation_retry_skipped_inflight");
+    return;
+  }
+
+  isRequestInFlight.value = true;
+  try {
+    trace("presentation_retry_start", { topic: sessionData?.topic });
+    const maxAttempts = 4;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        trace("presentation_attempt_start", { attempt, maxAttempts, topic: sessionData?.topic });
+        // Give mobile wallet a small window to finish cold-start setup after approval.
+        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+        await handleChallengeAndPresentation(sessionData);
+        trace("presentation_attempt_success", { attempt, topic: sessionData?.topic });
+        return;
+      } catch (error) {
+        lastError = error;
+        trace("presentation_attempt_error", {
+          attempt,
+          topic: sessionData?.topic,
+          error: String(error),
+        });
+        console.warn(`Presentation attempt ${attempt} failed`, error);
+      }
+    }
+
+    throw lastError || new Error("Failed to send presentation request");
+  } finally {
+    isRequestInFlight.value = false;
+    trace("presentation_retry_end");
+  }
+};
+
 // Step 2: Send presentation request
-const sendPresentationRequest = async (challengeData: any) => {
+const sendPresentationRequest = async (challengeData: any, traceId: string) => {
   if (!accountWalletConnect.value) {
     throw new Error("WalletConnect client not initialized");
   }
@@ -101,6 +156,10 @@ const sendPresentationRequest = async (challengeData: any) => {
   }
 
   console.log("Sending presentation request via merchant WC client");
+  trace("presentation_request_send", {
+    traceId,
+    challengeContext: challengeData?.context || null,
+  });
 
   const chainId = "ccd:4221332d34e1694168c2a0c0b3fd0f27"; // testnet chainId
   const proof = await accountWalletConnect.value.request(
@@ -108,29 +167,38 @@ const sendPresentationRequest = async (challengeData: any) => {
     chainId,
     {
       ...challengeData.presentationRequest,
+      __traceId: traceId,
       metadata: {
+        traceId,
         appName: "3P Account Wallet",
         description: "Merchant dApp using Concordium ID verification",
         url: window.location.origin,
         icons: [`${window.location.origin}/Concordium.png`],
       },
     },
+    traceId,
   );
 
   console.log("Presentation response received:", proof);
+  trace("presentation_response_received", { traceId, resultType: typeof proof });
   return proof;
 };
 
 // Orchestrate the three-step process
 const handleChallengeAndPresentation = async (sessionData: any) => {
+  const traceId = createTraceId();
   try {
+    trace("challenge_request_start", { traceId, topic: sessionData?.topic });
     const challengeData = await requestChallengeFromBackend();
+    trace("challenge_request_done", { traceId, hasChallenge: Boolean(challengeData) });
     
     if (challengeData && accountWalletConnect.value) {
-      const proof = await sendPresentationRequest(challengeData);
+      const proof = await sendPresentationRequest(challengeData, traceId);
       await verifyPresentationProof(proof);
+      trace("presentation_verify_done", { traceId });
     }
   } catch (error) {
+    trace("challenge_or_presentation_error", { traceId, error: String(error) });
     console.error("Error in challenge/presentation flow:", error);
     sdk.value?.closeModal();
   }
@@ -147,7 +215,7 @@ const handleSDKEvent = async (event: any) => {
       connected.value = true;
       console.log("Active session detected:", data);
       // Session already exists, request challenge and presentation
-      await handleChallengeAndPresentation(data);
+      await sendPresentationWithReadinessRetry(data);
       break;
     case "session_disconnected":
       connected.value = false;
@@ -158,9 +226,7 @@ const handleSDKEvent = async (event: any) => {
     case "session_approved":
       connected.value = true;
       console.log("Session approved!", data);
-      // New session approved, wait a moment for SDK to store session, then request challenge and presentation
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await handleChallengeAndPresentation(data);
+      await sendPresentationWithReadinessRetry(data);
       break;
 
     case "error":
