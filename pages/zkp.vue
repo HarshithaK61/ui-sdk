@@ -74,6 +74,25 @@ const canPair = computed(
 );
 
 // Initialize SignClient lazily on mount
+const ensureRelayConnected = async () => {
+  if (!signClient.value) return;
+  try {
+    const relayer: any = signClient.value.core.relayer;
+    if (!relayer.connected) {
+      console.info('[ZKP] relay_restart_transport');
+      await relayer.restartTransport();
+    }
+  } catch (e) {
+    console.error('[ZKP] relay_restart_error', e);
+  }
+};
+
+const onVisible = () => {
+  if (document.visibilityState === 'visible') {
+    ensureRelayConnected();
+  }
+};
+
 onMounted(async () => {
   try {
     const { SignClient } = await import("@walletconnect/sign-client");
@@ -82,8 +101,12 @@ onMounted(async () => {
       metadata: {
         name: "Account Wallet",
         description: "Account Wallet for Concordium",
-        url: "https://example.com",
+        url: window.location.origin,
         icons: [],
+        redirect: {
+          native: "",
+          universal: window.location.origin,
+        },
       },
     });
 
@@ -93,10 +116,12 @@ onMounted(async () => {
     error.value = "Failed to initialize WalletConnect";
     console.error("SignClient init error:", e);
   }
+
+  document.addEventListener('visibilitychange', onVisible);
 });
 
 onUnmounted(() => {
-  // Cleanup: disconnect active sessions if needed
+  document.removeEventListener('visibilitychange', onVisible);
   signClient.value = null;
 });
 

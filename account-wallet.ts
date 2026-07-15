@@ -35,6 +35,19 @@ export class AccountWalletWC {
     );
   }
   
+  async ensureConnected(): Promise<void> {
+    if (!this.wc_client) return;
+    try {
+      const relayer: any = this.wc_client.core.relayer;
+      if (!relayer.connected) {
+        this.trace("relay_restart_transport");
+        await relayer.restartTransport();
+      }
+    } catch (e) {
+      this.trace("relay_restart_error", { error: String(e) });
+    }
+  }
+
   async initClient() {
     this.trace("init_client_start");
     this.wc_client = await SignClient.init({
@@ -42,8 +55,12 @@ export class AccountWalletWC {
       metadata: {
         name: "3P Account Wallet",
         description: "dApp initiating connection",
-        url: "http://localhost:3000",
+        url: window.location.origin,
         icons: ["https://app-a.com/icon.png"],
+        redirect: {
+          native: "",
+          universal: window.location.origin,
+        },
       },
     });
 

@@ -26,11 +26,6 @@
 
 <script setup lang="ts">
 
-// onMounted(() => {
-//   // redirect to enable network page
-//   // if (window.location.pathname === '/') {
-//     window.location.href = '/enable-network';
-//   // }
-// });
+await navigateTo('/sdk-managed');
 
 </script>

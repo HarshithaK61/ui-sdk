@@ -59,18 +59,13 @@ const initSDK = (walletConnectURI?: string) => {
   }
 };
 
-const connectWalletMerchantProvided = async () => {
-  isToggled.value = !isToggled.value;
-
-  if (!isToggled.value) {
-    return;
-  }
-
-  try {
-    // Initialize merchant-managed WalletConnect client
+// Create (if needed) and initialize the WalletConnect client, wiring the
+// approval callback. Shared by the resume-on-load check and the click handler
+// so a page reload after the iOS wallet redirect can recover the same session.
+const ensureWalletConnectClient = async () => {
+  if (!accountWalletConnect.value) {
     accountWalletConnect.value = new AccountWalletWC();
 
-    // Set up callback for when session is approved
     accountWalletConnect.value.onSessionApproved = async (session: any) => {
       console.log("Session approved callback triggered:", session);
       connected.value = true;
@@ -79,9 +74,42 @@ const connectWalletMerchantProvided = async () => {
     };
 
     await accountWalletConnect.value.initClient();
+  }
+
+  return accountWalletConnect.value;
+};
+
+// On mount, recover an already-approved session rather than assuming the
+// page was never reloaded (iOS may reopen the redirect target in a fresh tab).
+const resumeExistingSession = async () => {
+  try {
+    const client = await ensureWalletConnectClient();
+    const existingSession = client.getMostNewSession();
+
+    if (existingSession) {
+      console.log("Resuming existing session on load:", existingSession);
+      isToggled.value = true;
+      connected.value = true;
+      initSDK();
+      await sdk.value?.showModal("returning-user");
+    }
+  } catch (error) {
+    console.error("Error resuming existing session:", error);
+  }
+};
+
+const connectWalletMerchantProvided = async () => {
+  isToggled.value = !isToggled.value;
+
+  if (!isToggled.value) {
+    return;
+  }
+
+  try {
+    const client = await ensureWalletConnectClient();
 
     // Check if there's already an active session
-    const existingSession = accountWalletConnect.value.getMostNewSession();
+    const existingSession = client.getMostNewSession();
 
     if (existingSession) {
       console.log("Found existing session:  ", existingSession);
@@ -91,7 +119,7 @@ const connectWalletMerchantProvided = async () => {
       await sdk.value?.showModal("returning-user");
     } else {
       // No existing session, need to connect
-      const wcUri = await accountWalletConnect.value.connect("ccd:testnet");
+      const wcUri = await client.connect("ccd:testnet");
       console.log("WalletConnect URI:", wcUri);
       if (wcUri) {
         // Initialize SDK with the WC URI and render modals
@@ -236,13 +264,22 @@ const handleSDKEvent = async (event: any) => {
   }
 };
 
+const onVisible = () => {
+  if (document.visibilityState === 'visible') {
+    accountWalletConnect.value?.ensureConnected();
+  }
+};
+
 onMounted(() => {
   // Listen to SDK events
   window.addEventListener("verification-web-ui-event", handleSDKEvent);
+  document.addEventListener('visibilitychange', onVisible);
+  resumeExistingSession();
 });
 
 onBeforeUnmount(() => {
   // Clean up event listener
   window.removeEventListener("verification-web-ui-event", handleSDKEvent);
+  document.removeEventListener('visibilitychange', onVisible);
 });
 </script>

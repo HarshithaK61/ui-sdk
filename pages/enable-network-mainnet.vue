@@ -309,7 +309,7 @@ const onCreateAccount = async () => {
     // open the idapp
     console.log('after calling createCCDAccount...')
     console.log('Opening Idapp...')
-    deeplink.value = "concordiumidapp://id-signup";
+    deeplink.value = "concordiumidapp://id-signup?source=mobile";
     uri.value = "http://localhost:5173/id-signup";
     openIdapp()
     console.log('after calling createCCDAccount...')
@@ -336,7 +336,7 @@ const onRecoverAccount = async () => {
     setTimeout(() => {
       console.log('after calling onRecoverAccount...')
       console.log('Opening Idapp...')      
-      deeplink.value = "concordiumidapp://id-signup";
+      deeplink.value = "concordiumidapp://id-signup?source=mobile";
       uri.value = "http://localhost:5173/id-signup";
       openIdapp()
     }, 2000)
