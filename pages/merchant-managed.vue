@@ -3,32 +3,69 @@
     <UCard>
       <div class="container mx-auto p-4">
         <button
-          @click="connectWalletMerchantProvided()"
+          @click="startBackendManagedVerification()"
+          :disabled="isVerifying"
           :class="[
             'px-6 py-2 rounded-lg font-medium transition-colors border',
-            isToggled
+            isVerifying || isVerified
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50',
+            isVerifying ? 'cursor-not-allowed opacity-80' : '',
           ]"
         >
-          {{ connected ? "Connected" : (isToggled ? "Connecting..." : "Connect Merchant Wallet") }}
+          {{ isVerified ? "Verified" : (isVerifying ? "Verifying..." : "Verify Your Age > 18") }}
         </button>
+        <p v-if="statusMessage" class="mt-3 text-sm text-gray-600">
+          {{ statusMessage }}
+        </p>
       </div>
     </UCard>
   </UContainer>
 </template>
-<script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from "vue";
-import { ConcordiumVerificationWebUI } from '@concordium/verification-web-ui';
-import '@concordium/verification-web-ui/styles';
-import { AccountWalletWC } from "~/account-wallet";
-import { useChallengePresentation } from "~/composables/useChallengePresentation";
 
-const isToggled = ref(false);
-const connected = ref(false);
+<script setup lang="ts">
+import { ref, onBeforeUnmount } from "vue";
+import { ConcordiumVerificationWebUI } from "@concordium/verification-web-ui";
+import "@concordium/verification-web-ui/styles";
+import { useChallengePresentation } from "~/composables/useChallengePresentation";
+import type { VerificationStatus, VerificationStatusResponse } from "~/services/api.service";
+
 const sdk = ref<ConcordiumVerificationWebUI | null>(null);
-const accountWalletConnect = ref<AccountWalletWC>();
-const isRequestInFlight = ref(false);
+const isVerifying = ref(false);
+const isVerified = ref(false);
+const verificationStatus = ref<VerificationStatus | null>(null);
+const statusMessage = ref<string | null>(null);
+const currentVerificationId = ref<string | null>(null);
+const wasModalClosed = ref(false);
+const activeModalState = ref<"qr" | "processing" | "success" | "error" | null>(null);
+
+const QR_STATUSES = new Set<VerificationStatus>(["WAITING_FOR_PAIRING"]);
+const PROCESSING_STATUSES = new Set<VerificationStatus>([
+  "PAIRING_APPROVED",
+  "SESSION_ESTABLISHED",
+  "REQUEST_SENT",
+  "PROOF_RECEIVED",
+]);
+const FAILURE_STATUSES = new Set<VerificationStatus>(["FAILED", "EXPIRED", "CANCELLED"]);
+
+const STATUS_MESSAGES: Record<VerificationStatus, string> = {
+  CREATED: "Preparing verification request...",
+  WAITING_FOR_PAIRING: "Waiting for IdApp scan...",
+  PAIRING_APPROVED: "Pairing approved. Establishing session...",
+  SESSION_ESTABLISHED: "Session established. Preparing verification...",
+  REQUEST_SENT: "Verification in progress. Please approve in IdApp...",
+  PROOF_RECEIVED: "Proof received. Validating...",
+  VERIFIED: "Verification successful.",
+  FAILED: "Verification failed.",
+  EXPIRED: "Verification expired.",
+  CANCELLED: "Verification cancelled.",
+};
+
+const {
+  createVerificationRequestFromBackend,
+  pollVerificationStatusFromBackend,
+  stopVerificationStatusPolling,
+} = useChallengePresentation(sdk);
 
 const trace = (stage: string, payload: Record<string, unknown> = {}) => {
   const now = Date.now();
@@ -40,246 +77,195 @@ const trace = (stage: string, payload: Record<string, unknown> = {}) => {
       timestampIso: new Date(now).toISOString(),
       timestampMs: now,
       ...payload,
-    })
+    }),
   );
 };
 
-const createTraceId = () => `wc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-// Initialize challenge presentation composable
-const { requestChallengeFromBackend, verifyPresentationProof } = useChallengePresentation(sdk);
-
-// Initialize SDK once
-const initSDK = (walletConnectURI?: string) => {
-  if (!sdk.value) {
-    sdk.value = new ConcordiumVerificationWebUI({
-      network: "testnet",
-      walletConnectUri: walletConnectURI,
-    });
-  }
-};
-
-// Create (if needed) and initialize the WalletConnect client, wiring the
-// approval callback. Shared by the resume-on-load check and the click handler
-// so a page reload after the iOS wallet redirect can recover the same session.
-const ensureWalletConnectClient = async () => {
-  if (!accountWalletConnect.value) {
-    accountWalletConnect.value = new AccountWalletWC();
-
-    accountWalletConnect.value.onSessionApproved = async (session: any) => {
-      console.log("Session approved callback triggered:", session);
-      connected.value = true;
-      await sdk.value?.showModal("processing");
-      await sendPresentationWithReadinessRetry(session);
-    };
-
-    await accountWalletConnect.value.initClient();
-  }
-
-  return accountWalletConnect.value;
-};
-
-// On mount, recover an already-approved session rather than assuming the
-// page was never reloaded (iOS may reopen the redirect target in a fresh tab).
-const resumeExistingSession = async () => {
-  try {
-    const client = await ensureWalletConnectClient();
-    const existingSession = client.getMostNewSession();
-
-    if (existingSession) {
-      console.log("Resuming existing session on load:", existingSession);
-      isToggled.value = true;
-      connected.value = true;
-      initSDK();
-      await sdk.value?.showModal("returning-user");
-    }
-  } catch (error) {
-    console.error("Error resuming existing session:", error);
-  }
-};
-
-const connectWalletMerchantProvided = async () => {
-  isToggled.value = !isToggled.value;
-
-  if (!isToggled.value) {
-    return;
-  }
-
-  try {
-    const client = await ensureWalletConnectClient();
-
-    // Check if there's already an active session
-    const existingSession = client.getMostNewSession();
-
-    if (existingSession) {
-      console.log("Found existing session:  ", existingSession);
-      connected.value = true;
-      // Initialize SDK first before showing modal
-      initSDK();
-      await sdk.value?.showModal("returning-user");
-    } else {
-      // No existing session, need to connect
-      const wcUri = await client.connect("ccd:testnet");
-      console.log("WalletConnect URI:", wcUri);
-      if (wcUri) {
-        // Initialize SDK with the WC URI and render modals
-        initSDK(wcUri);
-        await sdk.value?.renderUIModals();
-        // Wait for session to be established (will be handled by presentation_received event)
-      }
-    }
-  } catch (error) {
-    console.error("Error connecting wallet:", error);
-    isToggled.value = false;
-  }
-};
-
-const sendPresentationWithReadinessRetry = async (sessionData: any) => {
-  if (isRequestInFlight.value) {
-    trace("presentation_retry_skipped_inflight");
-    return;
-  }
-
-  isRequestInFlight.value = true;
-  try {
-    trace("presentation_retry_start", { topic: sessionData?.topic });
-    const maxAttempts = 4;
-    let lastError: unknown;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        trace("presentation_attempt_start", { attempt, maxAttempts, topic: sessionData?.topic });
-        // Give mobile wallet a small window to finish cold-start setup after approval.
-        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
-        await handleChallengeAndPresentation(sessionData);
-        trace("presentation_attempt_success", { attempt, topic: sessionData?.topic });
-        return;
-      } catch (error) {
-        lastError = error;
-        trace("presentation_attempt_error", {
-          attempt,
-          topic: sessionData?.topic,
-          error: String(error),
-        });
-        console.warn(`Presentation attempt ${attempt} failed`, error);
-      }
-    }
-
-    throw lastError || new Error("Failed to send presentation request");
-  } finally {
-    isRequestInFlight.value = false;
-    trace("presentation_retry_end");
-  }
-};
-
-// Step 2: Send presentation request
-const sendPresentationRequest = async (challengeData: any, traceId: string) => {
-  if (!accountWalletConnect.value) {
-    throw new Error("WalletConnect client not initialized");
-  }
-
-  const session = accountWalletConnect.value.getMostNewSession();
-  if (!session) {
-    throw new Error("No active session found");
-  }
-
-  console.log("Sending presentation request via merchant WC client");
-  trace("presentation_request_send", {
-    traceId,
-    challengeContext: challengeData?.context || null,
+const initSDK = (walletConnectUri: string) => {
+  sdk.value?.closeModal();
+  sdk.value = new ConcordiumVerificationWebUI({
+    network: "testnet",
+    walletConnectUri,
   });
-
-  const chainId = "ccd:4221332d34e1694168c2a0c0b3fd0f27"; // testnet chainId
-  const proof = await accountWalletConnect.value.request(
-    "request_verifiable_presentation_v1",
-    chainId,
-    {
-      ...challengeData.presentationRequest,
-      __traceId: traceId,
-      metadata: {
-        traceId,
-        appName: "3P Account Wallet",
-        description: "Merchant dApp using Concordium ID verification",
-        url: window.location.origin,
-        icons: [`${window.location.origin}/Concordium.png`],
-      },
-    },
-    traceId,
-  );
-
-  console.log("Presentation response received:", proof);
-  trace("presentation_response_received", { traceId, resultType: typeof proof });
-  return proof;
+  activeModalState.value = null;
 };
 
-// Orchestrate the three-step process
-const handleChallengeAndPresentation = async (sessionData: any) => {
-  const traceId = createTraceId();
-  try {
-    trace("challenge_request_start", { traceId, topic: sessionData?.topic });
-    const challengeData = await requestChallengeFromBackend();
-    trace("challenge_request_done", { traceId, hasChallenge: Boolean(challengeData) });
-    
-    if (challengeData && accountWalletConnect.value) {
-      const proof = await sendPresentationRequest(challengeData, traceId);
-      await verifyPresentationProof(proof);
-      trace("presentation_verify_done", { traceId });
-    }
-  } catch (error) {
-    trace("challenge_or_presentation_error", { traceId, error: String(error) });
-    console.error("Error in challenge/presentation flow:", error);
+const handleModalClose = () => {
+  if (!isVerified.value) {
+    wasModalClosed.value = true;
+    stopVerificationStatusPolling();
+  }
+};
+
+const showQrModal = async () => {
+  if (activeModalState.value === "qr") {
+    return;
+  }
+
+  sdk.value?.closeModal();
+  await sdk.value?.renderUIModals(handleModalClose);
+  activeModalState.value = "qr";
+};
+
+const closeActiveModal = () => {
+  sdk.value?.closeModal();
+  activeModalState.value = null;
+};
+
+const showProcessingModal = async () => {
+  if (activeModalState.value === "processing") {
+    return;
+  }
+
+  sdk.value?.closeModal();
+  await sdk.value?.showModal?.("processing");
+  activeModalState.value = "processing";
+};
+
+const showSuccessModal = async () => {
+  if (activeModalState.value === "success") {
+    return;
+  }
+
+  if (activeModalState.value !== "processing") {
+    await showProcessingModal();
+  }
+
+  await sdk.value?.showSuccessState?.();
+  activeModalState.value = "success";
+};
+
+const showErrorModal = async () => {
+  if (activeModalState.value === "error") {
+    return;
+  }
+
+  if (activeModalState.value !== "processing") {
+    await showProcessingModal();
+  }
+
+  if (typeof sdk.value?.showErrorState === "function") {
+    await sdk.value.showErrorState();
+  } else {
     sdk.value?.closeModal();
   }
+
+  activeModalState.value = "error";
 };
 
-// Handle SDK events using window event listener
-const handleSDKEvent = async (event: any) => {
-  const { type, data } = event.detail;
+const handleVerificationStatus = async (statusResponse: VerificationStatusResponse) => {
+  verificationStatus.value = statusResponse.status;
+  statusMessage.value =
+    statusResponse.error || STATUS_MESSAGES[statusResponse.status] || `Verification status: ${statusResponse.status}`;
 
-  console.log("SDK Event:", type, data);
+  trace("verification_status", {
+    verificationId: statusResponse.verificationId,
+    status: statusResponse.status,
+  });
 
-  switch (type) {
-    case "active_session":
-      connected.value = true;
-      console.log("Active session detected:", data);
-      // Session already exists, request challenge and presentation
-      await sendPresentationWithReadinessRetry(data);
-      break;
-    case "session_disconnected":
-      connected.value = false;
-      isToggled.value = false;
-      console.log("Session disconnected:", data);
-      break;
+  if (statusResponse.status === "CREATED") {
+    closeActiveModal();
+    return;
+  }
 
-    case "session_approved":
-      connected.value = true;
-      console.log("Session approved!", data);
-      await sendPresentationWithReadinessRetry(data);
-      break;
+  if (QR_STATUSES.has(statusResponse.status)) {
+    await showQrModal();
+    return;
+  }
 
-    case "error":
-      console.error("SDK Error:", data);
-      isToggled.value = false;
-      break;
+  if (PROCESSING_STATUSES.has(statusResponse.status)) {
+    await showProcessingModal();
+    return;
+  }
+
+  if (statusResponse.status === "VERIFIED") {
+    isVerified.value = true;
+    await showSuccessModal();
+    return;
+  }
+
+  if (FAILURE_STATUSES.has(statusResponse.status)) {
+    isVerified.value = false;
+    await showErrorModal();
   }
 };
 
-const onVisible = () => {
-  if (document.visibilityState === 'visible') {
-    accountWalletConnect.value?.ensureConnected();
+const startBackendManagedVerification = async () => {
+  if (isVerifying.value) {
+    return;
+  }
+
+  isVerifying.value = true;
+  isVerified.value = false;
+  verificationStatus.value = null;
+  statusMessage.value = "Creating verification request...";
+  currentVerificationId.value = null;
+  wasModalClosed.value = false;
+  activeModalState.value = null;
+
+  try {
+    trace("verification_create_start");
+    const verificationRequest = await createVerificationRequestFromBackend();
+    currentVerificationId.value = verificationRequest.verificationId;
+    trace("verification_create_done", {
+      verificationId: verificationRequest.verificationId,
+      expiresAt: verificationRequest.expiresAt,
+      hasWalletConnectUri: Boolean(verificationRequest.walletConnectUri),
+    });
+
+    statusMessage.value = "Waiting for IdApp scan...";
+    initSDK(verificationRequest.walletConnectUri);
+
+    await showQrModal();
+
+    statusMessage.value = "Checking verification status...";
+    const finalStatus = await pollVerificationStatusFromBackend(
+      verificationRequest.verificationId,
+      {
+        expiresAt: verificationRequest.expiresAt,
+        intervalMs: 2000,
+        onStatus: handleVerificationStatus,
+      },
+    );
+
+    verificationStatus.value = finalStatus.status;
+
+    if (finalStatus.status === "VERIFIED") {
+      isVerified.value = true;
+      statusMessage.value = "Verification successful.";
+      trace("verification_success", {
+        verificationId: finalStatus.verificationId,
+      });
+      return;
+    }
+
+    isVerified.value = false;
+    statusMessage.value = finalStatus.error || `Verification ${finalStatus.status.toLowerCase()}.`;
+    trace("verification_terminal_non_success", {
+      verificationId: finalStatus.verificationId,
+      status: finalStatus.status,
+      error: finalStatus.error,
+    });
+  } catch (error) {
+    isVerified.value = false;
+    const errorMessage = error instanceof Error ? error.message : "Verification failed";
+    statusMessage.value = errorMessage;
+    trace("verification_error", { error: errorMessage });
+    console.error("Backend-managed verification error:", error);
+
+    if (wasModalClosed.value && errorMessage === "Verification status polling stopped") {
+      statusMessage.value = "Verification cancelled.";
+      return;
+    }
+
+    await showErrorModal();
+  } finally {
+    isVerifying.value = false;
   }
 };
-
-onMounted(() => {
-  // Listen to SDK events
-  window.addEventListener("verification-web-ui-event", handleSDKEvent);
-  document.addEventListener('visibilitychange', onVisible);
-  resumeExistingSession();
-});
 
 onBeforeUnmount(() => {
-  // Clean up event listener
-  window.removeEventListener("verification-web-ui-event", handleSDKEvent);
-  document.removeEventListener('visibilitychange', onVisible);
+  stopVerificationStatusPolling();
+  sdk.value?.closeModal();
 });
 </script>

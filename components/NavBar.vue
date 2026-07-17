@@ -46,7 +46,7 @@ const idcLength = computed(() => {
     //{ label: 'Enable Network ', to: '/enable-network-mainnet' },
     //{ label: 'Enable Network (Testnet)', to: '/enable-network-testnet' },
     { label: 'SDK Managed', to: cacheBustedRoute('/sdk-managed') },
-    //{ label: 'Merchant Managed', to: '/merchant-managed' },
+    { label: 'Merchant Managed', to: '/merchant-managed' },
     //{ label: 'ZKP', to: '/zkp' },
     // { label: 'Create ID', to: '/create-identity' },
     // { label: 'IDs (' + idLength.value + ')', to: '/your-ids' },
