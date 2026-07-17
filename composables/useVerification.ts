@@ -1,12 +1,81 @@
 import { ref } from 'vue';
 import type { SessionTypes } from '@walletconnect/types';
 import { createApiService } from '~/services/api.service';
-import type { ChallengeResponse, VerificationResult } from '~/services/api.service';
+import type {
+  ChallengeResponse,
+  CreateVerificationResponse,
+  VerificationResult,
+  VerificationStatusResponse,
+} from '~/services/api.service';
 
 export const useVerification = () => {
   const apiService = createApiService('testnet');
   const isVerifying = ref(false);
   const verificationError = ref<string | null>(null);
+
+  /**
+   * Create a verification request on the backend.
+   * @param context - Verification context (e.g., 'IDProofVerificationByIdapp')
+   * @param network - Network to use ('mainnet' | 'testnet')
+   * @param age - Age requirement
+   * @param operator - Comparison operator ('gte' | 'lte' | 'eq')
+   * @param proofType - Proof types requested from the wallet
+   * @returns Verification request details, including WalletConnect URI
+   */
+  const createVerificationRequest = async (
+    context: string = 'IDProofVerificationByIdapp',
+    network: 'mainnet' | 'testnet' = 'testnet',
+    age: number = 18,
+    operator: 'gte' | 'lte' | 'eq' = 'gte',
+    proofType: string[] = ['AgeProof']
+  ): Promise<CreateVerificationResponse> => {
+    try {
+      verificationError.value = null;
+
+      const verificationRequest = await apiService.createVerificationRequest({
+        context,
+        network,
+        contextDetails: {
+          age,
+          operator,
+          proofType,
+        },
+      });
+
+      console.log('Verification request created:', verificationRequest);
+      return verificationRequest;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create verification request';
+      verificationError.value = errorMessage;
+      throw new Error(errorMessage);
+    }
+  };
+
+  /**
+   * Retrieve the current status for a verification request.
+   * @param verificationId - Backend verification identifier
+   * @returns Current verification status from backend
+   */
+  const getVerificationStatus = async (
+    verificationId: string
+  ): Promise<VerificationStatusResponse> => {
+    try {
+      verificationError.value = null;
+
+      if (!verificationId) {
+        throw new Error('Verification ID is required');
+      }
+
+      const verificationStatus = await apiService.getVerificationStatus(verificationId);
+
+      console.log('Verification status received:', verificationStatus);
+      return verificationStatus;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get verification status';
+      verificationError.value = errorMessage;
+      throw new Error(errorMessage);
+    }
+  };
 
   /**
    * Step 1: Request challenge from backend
@@ -166,6 +235,8 @@ export const useVerification = () => {
 
   return {
     // Individual step functions
+    createVerificationRequest,
+    getVerificationStatus,
     requestChallenge,
     requestVerifiablePresentation,
     verifyProof,

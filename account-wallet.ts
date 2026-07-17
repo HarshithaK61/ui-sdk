@@ -142,32 +142,18 @@ export class AccountWalletWC {
       // Create a new session if not exists 
       console.log("Connecting to wallet...");
       console.log('Using chainId for WC session proposal:', chainId)
-      const namespace= {
-         ccd: {
-            methods: [
-              IDAppSdkWallectConnectMethods.CREATE_ACCOUNT,
-              IDAppSdkWallectConnectMethods.RECOVER_ACCOUNT,
-              "request_verifiable_presentation_v1",
-            ],
-            chains: [chainId],
-            events: [
-              IDAppSdkWallectConnectMethods.CREATE_ACCOUNT,
-              IDAppSdkWallectConnectMethods.RECOVER_ACCOUNT,
-            ],
-          }
-      }
+      
 
-      console.log(JSON.stringify(namespace, null, 2))
-      this.trace("session_proposal_create", {
-        chainId,
-        methods: namespace.ccd.methods,
-        events: namespace.ccd.events,
-      });
       const { uri, approval } = await this.wc_client.connect({
-        optionalNamespaces: {
-          ...namespace
+        ccd: {
+            // Request all methods for broad wallet compatibility
+            methods: ['sign_and_send_transaction',
+              'sign_message',
+              'request_verifiable_presentation_v1',
+              'request_verifiable_presentation',],
+            chains: [chainId],
+            events: ['session_ping', 'chain_changed', 'accounts_changed', 'account_disconnected', 'session_event'],
         },
-        pairingTopic: undefined//existingPairing?.topic,
       });
       this.uri = uri
       console.log("Wallet connect URI: ", uri);

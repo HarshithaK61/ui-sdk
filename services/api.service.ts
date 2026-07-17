@@ -40,6 +40,44 @@ export interface ChallengeRequest {
   };
 }
 
+export interface CreateVerificationRequest {
+  context: string;
+  network: 'mainnet' | 'testnet';
+  contextDetails: {
+    age: number;
+    operator: 'gte' | 'lte' | 'eq';
+    proofType: string[];
+  };
+}
+
+export interface CreateVerificationResponse {
+  verificationId: string;
+  walletConnectUri: string;
+  expiresAt: string;
+}
+
+export type VerificationStatus =
+  | 'CREATED'
+  | 'WAITING_FOR_PAIRING'
+  | 'PAIRING_APPROVED'
+  | 'SESSION_ESTABLISHED'
+  | 'REQUEST_SENT'
+  | 'PROOF_RECEIVED'
+  | 'VERIFIED'
+  | 'FAILED'
+  | 'EXPIRED'
+  | 'CANCELLED';
+
+export interface VerificationStatusResponse {
+  verificationId: string;
+  status: VerificationStatus;
+  walletAddress?: string;
+  error?: string;
+  expiresAt: string;
+  updatedAt: string;
+  verificationResult?: Record<string, unknown>;
+}
+
 export class ApiService {
   private config: ApiConfig;
 
@@ -52,6 +90,7 @@ export class ApiService {
    */
   private getHeaders(): Record<string, string> {
     return {
+      'Accept': 'application/json',
       'Content-Type': 'application/json',
       'x-api-secret': this.config.apiSecret,
     };
@@ -90,6 +129,32 @@ export class ApiService {
       method: 'POST',
       body: JSON.stringify(request),
     });
+  }
+
+  /**
+   * Create a verification request and receive a WalletConnect URI.
+   */
+  async createVerificationRequest(
+    request: CreateVerificationRequest
+  ): Promise<CreateVerificationResponse> {
+    return this.makeRequest<CreateVerificationResponse>('/api/v1/verifications', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Retrieve the current status of a verification request.
+   */
+  async getVerificationStatus(
+    verificationId: string
+  ): Promise<VerificationStatusResponse> {
+    return this.makeRequest<VerificationStatusResponse>(
+      `/api/v1/verifications/${encodeURIComponent(verificationId)}`,
+      {
+        method: 'GET',
+      }
+    );
   }
 
   /**
