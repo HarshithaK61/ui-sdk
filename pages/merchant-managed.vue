@@ -16,7 +16,7 @@
           {{ isVerified ? "Verified" : (isVerifying ? "Verifying..." : "Verify Your Age > 18") }}
         </button>
 
-        <button v-if="walletConnectUri" @click="formDeepLinkButtonUrl(walletConnectUri)" class="mt-3 px-6 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600">
+        <button v-if="walletConnectUri" @click="openIdAppWithDeeplink()" class="mt-3 px-6 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600">
           Open in IdApp
         </button>
         <p v-if="statusMessage" class="mt-3 text-sm text-gray-600">
@@ -99,6 +99,15 @@ const formDeepLinkButtonUrl = (walletConnectUri: string) => {
   const encodedUri = encodeURIComponent(walletConnectUri);
   console.log(`concordiumidapp://wc?uri=${encodedUri}`);
   return `concordiumidapp://wc?uri=${encodedUri}`;
+};
+
+const openIdAppWithDeeplink = () => {
+  if (!walletConnectUri.value) {
+    console.error("WalletConnect URI is not available.");
+    return;
+  }
+  const deeplinkUrl = formDeepLinkButtonUrl(walletConnectUri.value);
+  window.location.href = deeplinkUrl;
 };
 
 const handleModalClose = () => {
