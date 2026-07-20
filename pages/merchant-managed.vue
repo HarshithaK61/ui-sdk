@@ -15,6 +15,10 @@
         >
           {{ isVerified ? "Verified" : (isVerifying ? "Verifying..." : "Verify Your Age > 18") }}
         </button>
+
+        <button v-if="walletConnectUri" @click="formDeepLinkButtonUrl(walletConnectUri)" class="mt-3 px-6 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600">
+          Open in IdApp
+        </button>
         <p v-if="statusMessage" class="mt-3 text-sm text-gray-600">
           {{ statusMessage }}
         </p>
@@ -38,6 +42,7 @@ const statusMessage = ref<string | null>(null);
 const currentVerificationId = ref<string | null>(null);
 const wasModalClosed = ref(false);
 const activeModalState = ref<"qr" | "processing" | "success" | "error" | null>(null);
+const walletConnectUri = ref<string | null>(null);
 
 const QR_STATUSES = new Set<VerificationStatus>(["WAITING_FOR_PAIRING"]);
 const PROCESSING_STATUSES = new Set<VerificationStatus>([
@@ -88,6 +93,12 @@ const initSDK = (walletConnectUri: string) => {
     walletConnectUri,
   });
   activeModalState.value = null;
+};
+
+const formDeepLinkButtonUrl = (walletConnectUri: string) => {
+  const encodedUri = encodeURIComponent(walletConnectUri);
+  console.log(`concordiumidapp://wc?uri=${encodedUri}`);
+  return `concordiumidapp://wc?uri=${encodedUri}`;
 };
 
 const handleModalClose = () => {
@@ -213,10 +224,13 @@ const startBackendManagedVerification = async () => {
       hasWalletConnectUri: Boolean(verificationRequest.walletConnectUri),
     });
 
-    statusMessage.value = "Waiting for IdApp scan...";
-    initSDK(verificationRequest.walletConnectUri);
+    walletConnectUri.value = verificationRequest.walletConnectUri;
 
-    await showQrModal();
+    statusMessage.value = "Waiting for IdApp scan...";
+    
+    // initSDK(verificationRequest.walletConnectUri);
+
+    // await showQrModal();
 
     statusMessage.value = "Checking verification status...";
     const finalStatus = await pollVerificationStatusFromBackend(
