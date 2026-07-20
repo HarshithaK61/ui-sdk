@@ -237,9 +237,9 @@ const startBackendManagedVerification = async () => {
 
     statusMessage.value = "Waiting for IdApp scan...";
     
-    // initSDK(verificationRequest.walletConnectUri);
+    initSDK(verificationRequest.walletConnectUri );
 
-    // await showQrModal();
+    await showQrModal();
 
     statusMessage.value = "Checking verification status...";
     const finalStatus = await pollVerificationStatusFromBackend(
