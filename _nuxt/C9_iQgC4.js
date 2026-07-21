@@ -1,0 +1,1 @@
+import{d as a,N as o,F as _,o as s,I as c,O as r}from"./jCdCUdyA.js";const u=a({__name:"index",async setup(p){let e,n;return[e,n]=o(()=>r("/sdk-managed")),await e,n(),(m,i)=>{const t=c;return s(),_(t)}}});export{u as default};
