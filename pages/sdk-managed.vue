@@ -204,6 +204,11 @@ const handleSDKEvent = async (event: any) => {
       await verifyPresentationProof(data);
       break;
 
+    case "verification_success":
+      connected.value = true;
+      console.info("[ui-sdk] verification_success event — success modal should be visible");
+      break;
+
     case "session_disconnected":
       connected.value = false;
       isToggled.value = false;
@@ -218,6 +223,22 @@ const handleSDKEvent = async (event: any) => {
 };
 
 onMounted(() => {
+  // eslint-disable-next-line no-console
+  console.info(
+    "%c[ui-sdk] sdk-managed LOADED",
+    "background:#630;color:#fff;padding:4px 8px;border-radius:4px;font-weight:bold",
+    {
+      href: window.location.href,
+      tip: 'After tapping "Open with ID App", look for [BRIDGE-TRACE] register START / SUCCESS',
+      dump: "concordiumBridgeTrace.dump()",
+    },
+  );
+  try {
+    (window as any).concordiumBridgeTrace?.dump?.();
+  } catch {
+    /* SDK may not have installed helpers yet */
+  }
+
   if (!route.query.cb) {
     router.replace({
       path: route.path,

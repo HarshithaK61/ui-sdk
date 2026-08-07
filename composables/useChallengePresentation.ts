@@ -111,15 +111,16 @@ export const useChallengePresentation = (sdk: Ref<any>) => {
     const isValid = await verifyProof(data, "testnet");
     console.log("Proof validity:", isValid);
 
-    // If valid, show success state
     if (isValid.verified) {
-      console.log("Proof is valid!");
+      console.log("Proof is valid — showing Success modal");
       await sdk.value?.showSuccessState();
-      // Auto-close modal after 2 seconds
-      // setTimeout(() => sdk.value?.closeModal(), 2000);
     } else {
       console.error("Verification failed:", isValid);
-      sdk.value?.closeModal();
+      if (typeof sdk.value?.showErrorState === "function") {
+        await sdk.value.showErrorState();
+      } else {
+        sdk.value?.closeModal();
+      }
     }
 
     return isValid;

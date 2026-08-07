@@ -16,9 +16,6 @@
           {{ isVerified ? "Verified" : (isVerifying ? "Verifying..." : "Verify Your Age > 18") }}
         </button>
 
-        <button v-if="walletConnectUri" @click="openIdAppWithDeeplink()" class="mt-3 px-6 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600">
-          Open in IdApp
-        </button>
         <p v-if="statusMessage" class="mt-3 text-sm text-gray-600">
           {{ statusMessage }}
         </p>
@@ -28,11 +25,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onBeforeUnmount } from "vue";
+import { ref, onMounted, onBeforeUnmount } from "vue";
 import { ConcordiumVerificationWebUI } from "@concordium/verification-web-ui";
 import "@concordium/verification-web-ui/styles";
 import { useChallengePresentation } from "~/composables/useChallengePresentation";
 import type { VerificationStatus, VerificationStatusResponse } from "~/services/api.service";
+
+onMounted(() => {
+  // Visible the moment this page loads in Safari Web Inspector.
+  // eslint-disable-next-line no-console
+  console.info(
+    "%c[ui-sdk] merchant-managed LOADED",
+    "background:#630;color:#fff;padding:4px 8px;border-radius:4px;font-weight:bold",
+    {
+      href: window.location.href,
+      tip: 'After tapping "Open with ID App", look for [BRIDGE-TRACE] register START / SUCCESS',
+      dump: "concordiumBridgeTrace.dump()",
+    },
+  );
+  try {
+    (window as any).concordiumBridgeTrace?.dump?.();
+  } catch {
+    /* SDK may not have installed helpers yet */
+  }
+});
 
 const sdk = ref<ConcordiumVerificationWebUI | null>(null);
 const isVerifying = ref(false);
@@ -42,7 +58,6 @@ const statusMessage = ref<string | null>(null);
 const currentVerificationId = ref<string | null>(null);
 const wasModalClosed = ref(false);
 const activeModalState = ref<"qr" | "processing" | "success" | "error" | null>(null);
-const walletConnectUri = ref<string | null>(null);
 
 const QR_STATUSES = new Set<VerificationStatus>(["WAITING_FOR_PAIRING"]);
 const PROCESSING_STATUSES = new Set<VerificationStatus>([
@@ -95,21 +110,6 @@ const initSDK = (walletConnectUri: string) => {
   activeModalState.value = null;
 };
 
-const formDeepLinkButtonUrl = (walletConnectUri: string) => {
-  const encodedUri = encodeURIComponent(walletConnectUri);
-  console.log(`concordiumidapp://wc?uri=${encodedUri}`);
-  return `concordiumidapp://wc?uri=${encodedUri}`;
-};
-
-const openIdAppWithDeeplink = () => {
-  if (!walletConnectUri.value) {
-    console.error("WalletConnect URI is not available.");
-    return;
-  }
-  const deeplinkUrl = formDeepLinkButtonUrl(walletConnectUri.value);
-  window.location.href = deeplinkUrl;
-};
-
 const handleModalClose = () => {
   if (!isVerified.value) {
     wasModalClosed.value = true;
@@ -147,12 +147,16 @@ const showSuccessModal = async () => {
     return;
   }
 
+  // Do not closeModal() first — that remounts and causes success flicker.
   if (activeModalState.value !== "processing") {
-    await showProcessingModal();
+    await sdk.value?.showModal?.("processing");
+    activeModalState.value = "processing";
   }
 
   await sdk.value?.showSuccessState?.();
   activeModalState.value = "success";
+  statusMessage.value = "Verification successful.";
+  console.info("[ui-sdk] Verification Success modal shown");
 };
 
 const showErrorModal = async () => {
@@ -233,11 +237,9 @@ const startBackendManagedVerification = async () => {
       hasWalletConnectUri: Boolean(verificationRequest.walletConnectUri),
     });
 
-    walletConnectUri.value = verificationRequest.walletConnectUri;
-
     statusMessage.value = "Waiting for IdApp scan...";
-    
-    initSDK(verificationRequest.walletConnectUri );
+
+    initSDK(verificationRequest.walletConnectUri);
 
     await showQrModal();
 
@@ -256,6 +258,7 @@ const startBackendManagedVerification = async () => {
     if (finalStatus.status === "VERIFIED") {
       isVerified.value = true;
       statusMessage.value = "Verification successful.";
+      await showSuccessModal();
       trace("verification_success", {
         verificationId: finalStatus.verificationId,
       });

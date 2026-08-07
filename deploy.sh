@@ -7,14 +7,14 @@ rm -rf .output
 
 # Step 2: Build with correct baseURL
 echo "Generating Nuxt static site for GitHub Pages..."
-yarn generate:gh
+npm run generate:gh
 
 # Step 3: Deploy to GitHub Pages via SSH
 cd .output/public
 touch .nojekyll
 
 git init
-git remote add origin https://github.com/HarshithaK61/ui-sdk.git
+git remote add origin git@github.com:HarshithaK61/ui-sdk.git
 git checkout -b gh-pages
 git add .
 git commit -m "Clean deploy without worker"

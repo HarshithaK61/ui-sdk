@@ -55,11 +55,15 @@ export class AccountWalletWC {
       metadata: {
         name: "3P Account Wallet",
         description: "dApp initiating connection",
-        url: window.location.origin,
-        icons: ["https://app-a.com/icon.png"],
+        url: typeof window !== "undefined" ? window.location.origin : "https://harshithak61.github.io",
+        icons: [
+          typeof window !== "undefined"
+            ? `${window.location.origin}/Concordium.png`
+            : "https://harshithak61.github.io/ui-sdk/Concordium.png",
+        ],
         redirect: {
           native: "",
-          universal: window.location.origin,
+          universal: typeof window !== "undefined" ? window.location.origin : "",
         },
       },
     });
