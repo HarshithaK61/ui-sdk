@@ -81,7 +81,7 @@ const initSDK = () => {
       name: "Concordium Merchant SDK",
       description: "Merchant dApp using Concordium ID verification",
       url: window.location.origin,
-      icons: [`${window.location.origin}/Concordium.png`],
+      icons: ["https://harshithak61.github.io/ui-sdk/Concordium.png"],
     },
   });
 };
@@ -141,10 +141,10 @@ const sendPresentationRequest = async (challengeData: any, sessionData: any, tra
     __traceId: traceId,
     metadata: {
       traceId,
-      appName: "Concordium Merchant SDK",
+      appName: "Verification Web UI",
       description: "Merchant dApp using Concordium ID verification",
       url: window.location.origin,
-      icons: [`${window.location.origin}/Concordium.png`],
+      icons: ["https://harshithak61.github.io/ui-sdk/Concordium.png"],
       ...(challengeData?.presentationRequest?.metadata || {}),
     },
   };

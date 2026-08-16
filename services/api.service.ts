@@ -105,10 +105,21 @@ export class ApiService {
   ): Promise<T> {
     const url = `${this.config.apiUrl.replace(/\/$/, '')}${endpoint}`;
 
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-      ...options,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: this.getHeaders(),
+        ...options,
+      });
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : String(error);
+      if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+        throw new Error(
+          'Could not reach the verification server. Check your connection and try again.'
+        );
+      }
+      throw error instanceof Error ? error : new Error(raw);
+    }
 
     if (!response.ok) {
       throw new Error(

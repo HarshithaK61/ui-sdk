@@ -14,6 +14,66 @@ import type { CredentialDeploymentTransaction, HexString, Network } from "@conco
 
 const projectId = "8b6c46b9127ce91195745c124870244e";
 
+const MERCHANT_WC_METADATA = () => ({
+  name: "Concordium Merchant SDK",
+  description: "Merchant dApp using Concordium ID verification",
+  url: typeof window !== "undefined" ? window.location.origin : "https://harshithak61.github.io",
+  icons: ["https://harshithak61.github.io/ui-sdk/Concordium.png"],
+  redirect: {
+    native: "",
+    universal:
+      typeof window !== "undefined" ? window.location.origin : "https://harshithak61.github.io",
+  },
+});
+
+const WC_METADATA_FINGERPRINT_KEY = "ccd_ui_sdk_wc_metadata_v";
+
+/** SignClient persists client metadata in storage — old name/icon stick until wiped. */
+async function ensureFreshWalletConnectMetadata(metadata: ReturnType<typeof MERCHANT_WC_METADATA>) {
+  if (typeof window === "undefined") return;
+  const fingerprint = JSON.stringify({
+    name: metadata.name,
+    icons: metadata.icons,
+    url: metadata.url,
+  });
+  try {
+    if (localStorage.getItem(WC_METADATA_FINGERPRINT_KEY) === fingerprint) return;
+
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith("wc@") ||
+          key.includes("walletconnect") ||
+          key.includes("WALLETCONNECT") ||
+          key.startsWith("wc_"))
+      ) {
+        toRemove.push(key);
+      }
+    }
+    toRemove.forEach((key) => localStorage.removeItem(key));
+
+    if (typeof indexedDB !== "undefined" && typeof indexedDB.databases === "function") {
+      const dbs = await indexedDB.databases();
+      for (const db of dbs) {
+        if (db.name && /walletconnect|WALLET_CONNECT|wc@/i.test(db.name)) {
+          indexedDB.deleteDatabase(db.name);
+        }
+      }
+    }
+
+    localStorage.setItem(WC_METADATA_FINGERPRINT_KEY, fingerprint);
+    console.info("[AccountWalletWC] Cleared WalletConnect storage so new metadata applies", {
+      name: metadata.name,
+      icons: metadata.icons,
+      url: metadata.url,
+    });
+  } catch (error) {
+    console.warn("[AccountWalletWC] Could not refresh WC metadata storage", error);
+  }
+}
+
 export class AccountWalletWC {
   private wc_client: any
   public session: any = null
@@ -50,22 +110,11 @@ export class AccountWalletWC {
 
   async initClient() {
     this.trace("init_client_start");
+    const metadata = MERCHANT_WC_METADATA();
+    await ensureFreshWalletConnectMetadata(metadata);
     this.wc_client = await SignClient.init({
       projectId,
-      metadata: {
-        name: "3P Account Wallet",
-        description: "dApp initiating connection",
-        url: typeof window !== "undefined" ? window.location.origin : "https://harshithak61.github.io",
-        icons: [
-          typeof window !== "undefined"
-            ? `${window.location.origin}/Concordium.png`
-            : "https://harshithak61.github.io/ui-sdk/Concordium.png",
-        ],
-        redirect: {
-          native: "",
-          universal: typeof window !== "undefined" ? window.location.origin : "",
-        },
-      },
+      metadata,
     });
 
     // events...
@@ -163,29 +212,58 @@ export class AccountWalletWC {
       console.log("Wallet connect URI: ", uri);
       this.trace("connect_uri_created", { hasUri: Boolean(uri) });
       console.log("Waiting for approval...");
-      approval().then((x: unknown) => {
-        console.log("Session approved:", x);        
-        this.session = x
+
+      let sessionHandled = false;
+      const handleApproved = (x: unknown) => {
+        if (sessionHandled) return;
+        sessionHandled = true;
+        console.log("Session approved:", x);
+        this.session = x;
         this.trace("session_approved", {
           topic: (x as any)?.topic,
           expiry: (x as any)?.expiry,
         });
-      
-        console.log('Session expires at:', this.formatExpiryIST(this.session.expiry));
-        this.printPairing()
-        this.printSessions()
-        ConcordiumIDAppPoup.closePopup()
-        
-        // Trigger callback if provided
+
+        console.log("Session expires at:", this.formatExpiryIST(this.session.expiry));
+        this.printPairing();
+        this.printSessions();
+        ConcordiumIDAppPoup.closePopup();
+
         if (this.onSessionApproved) {
           this.onSessionApproved(this.session);
         }
-      }).catch((e: unknown) => {
-        this.trace("session_rejected", { error: String(e) });
-        console.log("Session rejected:", e);
-        alert("Session rejected: " + e)
-        ConcordiumIDAppPoup.closePopup()
+      };
+
+      approval()
+        .then(handleApproved)
+        .catch((e: unknown) => {
+          this.trace("session_rejected", { error: String(e) });
+          console.log("Session rejected:", e);
+          alert("Session rejected: " + e);
+          ConcordiumIDAppPoup.closePopup();
+        });
+
+      // Safari is often frozen during ID App pairing — resume relay + pick up settled session.
+      const tryRecover = async () => {
+        if (sessionHandled || document.hidden) return;
+        try {
+          await this.ensureConnected();
+          const existing = this.getMostNewSession();
+          if (existing) handleApproved(existing);
+        } catch (e) {
+          this.trace("session_recover_error", { error: String(e) });
+        }
+      };
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) void tryRecover();
       });
+      window.addEventListener("focus", () => {
+        void tryRecover();
+      });
+      window.addEventListener("pageshow", () => {
+        void tryRecover();
+      });
+
       return uri
     } catch (e) {
       this.trace("connect_error", { error: String(e) });

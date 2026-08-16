@@ -275,8 +275,11 @@ const startBackendManagedVerification = async () => {
   } catch (error) {
     isVerified.value = false;
     const errorMessage = error instanceof Error ? error.message : "Verification failed";
-    statusMessage.value = errorMessage;
-    trace("verification_error", { error: errorMessage });
+    const friendlyMessage = /failed to fetch|networkerror|load failed/i.test(errorMessage)
+      ? "Could not reach the verification server. Check your connection and try again."
+      : errorMessage;
+    statusMessage.value = friendlyMessage;
+    trace("verification_error", { error: friendlyMessage });
     console.error("Backend-managed verification error:", error);
 
     if (wasModalClosed.value && errorMessage === "Verification status polling stopped") {
