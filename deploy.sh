@@ -16,7 +16,7 @@ touch .nojekyll
 git init
 git remote add origin git@github.com:HarshithaK61/ui-sdk.git
 git checkout -b gh-pages
-git add .
+git add -A
 git commit -m "Clean deploy without worker"
 git push -f origin gh-pages
 

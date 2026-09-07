@@ -241,6 +241,20 @@ const startBackendManagedVerification = async () => {
 
     initSDK(verificationRequest.walletConnectUri);
 
+    const qrUrl = (() => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("wc_redirect");
+      url.searchParams.delete("uri");
+      url.searchParams.delete("install_id");
+      url.searchParams.delete("source");
+      url.searchParams.set("wc_redirect", "1");
+      url.searchParams.set("uri", verificationRequest.walletConnectUri);
+      url.searchParams.set("source", "qr");
+      return url.toString();
+    })();
+    // eslint-disable-next-line no-console
+    console.info("[ui-sdk] merchant-managed QR complete URL", qrUrl);
+
     await showQrModal();
 
     statusMessage.value = "Checking verification status...";
