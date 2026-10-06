@@ -1,0 +1,1 @@
+function r(){return/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream}function i(){return/android/i.test(navigator.userAgent)}function o(){if(!r())return!1;const t=navigator.userAgent.match(/OS (\d+)[._](\d+)/);if(!t)return!1;const e=Number(t[1]),n=Number(t[2]);return e>16||e===16&&n>=4}export{o as a,i as b,r as i};
