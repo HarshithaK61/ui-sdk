@@ -13,6 +13,18 @@ export const identityObjectKey = 'identity-object';
 export const identityIndex = 0;
 export const credNumber = 0;
 
+/**
+ * Apple default App Clip link (iOS 16.4+, after Concordium ID + clip are on the Store).
+ * sid/wc are appended at redirect time. Demo URL cannot carry WalletConnect params — do not use it here.
+ */
+export const APP_CLIP_INVOCATION_URL = 'https://appclip.apple.com/id?p=com.idwallet.app.Clip';
+export const APP_CLIP_DEMO_URL =
+  'https://apps.apple.com/demo/id6746754485?app-clip-bundle-id=com.idwallet.app.Clip';
+export const APP_CLIP_PARENT_OPEN_URL = 'concordiumidapp://open';
+export const APP_ABSENT_REDIRECT_STORAGE_KEY = 'concordiumAppAbsentRedirectUrl';
+export const APP_CLIP_SID_STORAGE_KEY = 'concordiumAppClipSid';
+export const PRESENT_APP_OPEN_STORAGE_KEY = 'concordiumPresentAppOpenUrl';
+
 
 
 
