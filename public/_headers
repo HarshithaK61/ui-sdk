@@ -1,0 +1,5 @@
+# Netlify: Verified Domain record read by Concordium IDApp.
+/.well-known/ccddvr/*
+  Content-Type: application/json
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
