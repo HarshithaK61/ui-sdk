@@ -37,6 +37,8 @@ export interface ChallengeRequest {
     age: number;
     operator: 'gte' | 'lte' | 'eq';
     proofType: string[];
+    /** WalletConnect session topic; IdApp checks it against its own session. */
+    connectionId?: string;
   };
 }
 

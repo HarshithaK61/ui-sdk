@@ -95,12 +95,14 @@ export const useChallengePresentation = (sdk: Ref<any>) => {
   };
 
   // Step 1: Request challenge from backend
-  const requestChallengeFromBackend = async () => {
+  // connectionId: the WalletConnect session topic the request will be sent on.
+  const requestChallengeFromBackend = async (connectionId?: string) => {
     const challengeData = await requestChallenge(
       "IDProofVerificationByIdapp",
       "testnet",
       18,
       "gte",
+      connectionId,
     );
     console.log("Challenge data received:", challengeData);
     return challengeData;

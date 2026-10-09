@@ -89,7 +89,8 @@ export const useVerification = () => {
     context: string = 'IDProofVerificationByIdapp',
     network: string = 'testnet',
     age: number = 18,
-    operator: 'gte' | 'lte' | 'eq' = 'gte'
+    operator: 'gte' | 'lte' | 'eq' = 'gte',
+    connectionId?: string
   ): Promise<ChallengeResponse> => {
     try {
       verificationError.value = null;
@@ -101,6 +102,8 @@ export const useVerification = () => {
           age,
           operator,
           proofType: ['AgeProof'],
+          // IdApp rejects the request unless ConnectionID is this session's topic.
+          ...(connectionId ? { connectionId } : {}),
         },
       });
 
