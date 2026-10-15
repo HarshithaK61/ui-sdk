@@ -52,6 +52,33 @@ export const useVerification = () => {
   };
 
   /**
+   * Create a consent-only verification request on the backend.
+   * @param consentMessage - Plain text the user approves in IdApp
+   * @param network - Network to use ('mainnet' | 'testnet')
+   * @returns Verification request details, including WalletConnect URI
+   */
+  const createConsentVerificationRequest = async (
+    consentMessage: string,
+    network: 'mainnet' | 'testnet' = 'testnet'
+  ): Promise<CreateVerificationResponse> => {
+    try {
+      verificationError.value = null;
+
+      const verificationRequest = await apiService.createConsentVerificationRequest({
+        network,
+        consentMessage,
+      });
+
+      console.log('Consent verification request created:', verificationRequest);
+      return verificationRequest;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create consent verification request';
+      verificationError.value = errorMessage;
+      throw new Error(errorMessage);
+    }
+  };
+
+  /**
    * Retrieve the current status for a verification request.
    * @param verificationId - Backend verification identifier
    * @returns Current verification status from backend
@@ -239,6 +266,7 @@ export const useVerification = () => {
   return {
     // Individual step functions
     createVerificationRequest,
+    createConsentVerificationRequest,
     getVerificationStatus,
     requestChallenge,
     requestVerifiablePresentation,

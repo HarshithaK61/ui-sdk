@@ -17,6 +17,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const useChallengePresentation = (sdk: Ref<any>) => {
   const {
     createVerificationRequest,
+    createConsentVerificationRequest,
     getVerificationStatus,
     requestChallenge,
     verifyProof,
@@ -35,6 +36,12 @@ export const useChallengePresentation = (sdk: Ref<any>) => {
 
     console.log("Verification request created:", verificationRequest);
     return verificationRequest;
+  };
+
+  const createConsentVerificationRequestFromBackend = async (
+    consentMessage: string,
+  ): Promise<CreateVerificationResponse> => {
+    return createConsentVerificationRequest(consentMessage, "testnet");
   };
 
   const stopVerificationStatusPolling = () => {
@@ -130,6 +137,7 @@ export const useChallengePresentation = (sdk: Ref<any>) => {
 
   return {
     createVerificationRequestFromBackend,
+    createConsentVerificationRequestFromBackend,
     pollVerificationStatusFromBackend,
     stopVerificationStatusPolling,
     requestChallengeFromBackend,

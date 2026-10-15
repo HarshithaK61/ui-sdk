@@ -52,6 +52,12 @@ export interface CreateVerificationRequest {
   };
 }
 
+export interface CreateConsentVerificationRequest {
+  network: 'mainnet' | 'testnet';
+  /** Plain text the user approves in IdApp; no identity attributes are requested. */
+  consentMessage: string;
+}
+
 export interface CreateVerificationResponse {
   verificationId: string;
   walletConnectUri: string;
@@ -151,6 +157,18 @@ export class ApiService {
     request: CreateVerificationRequest
   ): Promise<CreateVerificationResponse> {
     return this.makeRequest<CreateVerificationResponse>('/api/v1/verifications', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Create a consent-only verification request (WalletConnect pairing URI + polling id).
+   */
+  async createConsentVerificationRequest(
+    request: CreateConsentVerificationRequest
+  ): Promise<CreateVerificationResponse> {
+    return this.makeRequest<CreateVerificationResponse>('/api/v1/verifications/consent', {
       method: 'POST',
       body: JSON.stringify(request),
     });
