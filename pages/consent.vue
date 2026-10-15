@@ -11,7 +11,7 @@
           rows="4"
           maxlength="1000"
           :disabled="isVerifying"
-          placeholder="I confirm with my Concordium ID App that I approve this request from 3P Account Wallet Demo."
+          placeholder="Type the message the user approves in ID App"
           class="w-full rounded-lg border border-gray-300 p-3 text-sm text-gray-900 focus:border-blue-600 focus:outline-none disabled:opacity-60"
         />
         <p class="mt-1 mb-4 text-xs text-gray-500">
@@ -47,7 +47,9 @@ import "@concordium/verification-web-ui/styles";
 import { useChallengePresentation } from "~/composables/useChallengePresentation";
 import type { VerificationStatus, VerificationStatusResponse } from "~/services/api.service";
 
-const consentMessage = ref("");
+const DEFAULT_CONSENT_MESSAGE =
+  "I confirm with my Concordium ID App that I approve this request from 3P Account Wallet Demo.";
+const consentMessage = ref(DEFAULT_CONSENT_MESSAGE);
 const hasConsentMessage = computed(() => consentMessage.value.trim().length > 0);
 const sdk = ref<ConcordiumVerificationWebUI | null>(null);
 const isVerifying = ref(false);
