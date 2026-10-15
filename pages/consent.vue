@@ -11,7 +11,7 @@
           rows="4"
           maxlength="1000"
           :disabled="isVerifying"
-          placeholder="I authorise cancellation of reservation HTL-78231 and accept the EUR 75 cancellation fee."
+          placeholder="I confirm with my Concordium ID App that I approve this request from 3P Account Wallet Demo."
           class="w-full rounded-lg border border-gray-300 p-3 text-sm text-gray-900 focus:border-blue-600 focus:outline-none disabled:opacity-60"
         />
         <p class="mt-1 mb-4 text-xs text-gray-500">
