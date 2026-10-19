@@ -1,5 +1,9 @@
 import { useVerification } from "~/composables/useVerification";
-import type { CreateVerificationResponse, VerificationStatusResponse } from "~/services/api.service";
+import type {
+  ConsentProofContextDetails,
+  CreateVerificationResponse,
+  VerificationStatusResponse,
+} from "~/services/api.service";
 import type { Ref } from "vue";
 
 interface VerificationStatusPollingOptions {
@@ -40,8 +44,9 @@ export const useChallengePresentation = (sdk: Ref<any>) => {
 
   const createConsentVerificationRequestFromBackend = async (
     consentMessage: string,
+    contextDetails?: ConsentProofContextDetails,
   ): Promise<CreateVerificationResponse> => {
-    return createConsentVerificationRequest(consentMessage, "testnet");
+    return createConsentVerificationRequest(consentMessage, "testnet", contextDetails);
   };
 
   const stopVerificationStatusPolling = () => {

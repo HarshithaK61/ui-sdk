@@ -3,6 +3,7 @@ import type { SessionTypes } from '@walletconnect/types';
 import { createApiService } from '~/services/api.service';
 import type {
   ChallengeResponse,
+  ConsentProofContextDetails,
   CreateVerificationResponse,
   VerificationResult,
   VerificationStatusResponse,
@@ -59,14 +60,17 @@ export const useVerification = () => {
    */
   const createConsentVerificationRequest = async (
     consentMessage: string,
-    network: 'mainnet' | 'testnet' = 'testnet'
+    network: 'mainnet' | 'testnet' = 'testnet',
+    contextDetails?: ConsentProofContextDetails
   ): Promise<CreateVerificationResponse> => {
     try {
       verificationError.value = null;
 
+      // contextDetails is left out entirely for consent only, never sent as null.
       const verificationRequest = await apiService.createConsentVerificationRequest({
         network,
         consentMessage,
+        ...(contextDetails ? { contextDetails } : {}),
       });
 
       console.log('Consent verification request created:', verificationRequest);

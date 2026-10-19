@@ -52,10 +52,19 @@ export interface CreateVerificationRequest {
   };
 }
 
+/** Identity proofs requested together with a consent message. */
+export interface ConsentProofContextDetails {
+  age: number;
+  operator: 'gte' | 'lte' | 'eq';
+  proofType: string[];
+}
+
 export interface CreateConsentVerificationRequest {
   network: 'mainnet' | 'testnet';
-  /** Plain text the user approves in IdApp; no identity attributes are requested. */
+  /** Plain text the user approves in IdApp. */
   consentMessage: string;
+  /** Omit for consent only; set to also request these identity proofs. */
+  contextDetails?: ConsentProofContextDetails;
 }
 
 export interface CreateVerificationResponse {

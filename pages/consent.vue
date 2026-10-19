@@ -14,9 +14,20 @@
           placeholder="Type the message the user approves in ID App"
           class="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-600 focus:outline-none disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400"
         />
-        <p class="mt-1 mb-4 text-xs text-gray-500">
-          Shown to the user in IdApp as plain text. No identity attributes are requested.
+        <p class="mt-1 mb-3 text-xs text-gray-500">
+          Shown to the user in IdApp as plain text.
         </p>
+
+        <label for="request-age-proof" class="mb-4 flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
+          <input
+            id="request-age-proof"
+            v-model="requestAgeProof"
+            type="checkbox"
+            :disabled="isVerifying"
+            class="h-4 w-4 rounded border-gray-300 accent-green-500 disabled:opacity-60"
+          />
+          Also request proof that the user is 18 or older
+        </label>
 
         <button
           @click="startBackendManagedVerification()"
@@ -45,12 +56,23 @@ import { ref, computed, onBeforeUnmount } from "vue";
 import { ConcordiumVerificationWebUI } from "@concordium/verification-web-ui";
 import "@concordium/verification-web-ui/styles";
 import { useChallengePresentation } from "~/composables/useChallengePresentation";
-import type { VerificationStatus, VerificationStatusResponse } from "~/services/api.service";
+import type {
+  ConsentProofContextDetails,
+  VerificationStatus,
+  VerificationStatusResponse,
+} from "~/services/api.service";
 
 const DEFAULT_CONSENT_MESSAGE =
   "I confirm with my Concordium ID App that I approve this request from 3P Account Wallet Demo.";
 const consentMessage = ref(DEFAULT_CONSENT_MESSAGE);
 const hasConsentMessage = computed(() => consentMessage.value.trim().length > 0);
+// Unchecked (the default) sends consent only; checked adds a fixed age >= 18 proof.
+const requestAgeProof = ref(false);
+const AGE_PROOF_CONTEXT_DETAILS: ConsentProofContextDetails = {
+  age: 18,
+  operator: "gte",
+  proofType: ["AgeProof"],
+};
 const sdk = ref<ConcordiumVerificationWebUI | null>(null);
 const isVerifying = ref(false);
 const isVerified = ref(false);
@@ -230,7 +252,10 @@ const startBackendManagedVerification = async () => {
 
   try {
     trace("verification_create_start");
-    const verificationRequest = await createConsentVerificationRequestFromBackend(consentMessage.value);
+    const verificationRequest = await createConsentVerificationRequestFromBackend(
+      consentMessage.value,
+      requestAgeProof.value ? AGE_PROOF_CONTEXT_DETAILS : undefined,
+    );
     currentVerificationId.value = verificationRequest.verificationId;
     trace("verification_create_done", {
       verificationId: verificationRequest.verificationId,
