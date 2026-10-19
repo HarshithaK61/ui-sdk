@@ -12,7 +12,7 @@
           maxlength="1000"
           :disabled="isVerifying"
           placeholder="Type the message the user approves in ID App"
-          class="w-full rounded-lg border border-gray-300 p-3 text-sm text-gray-900 focus:border-blue-600 focus:outline-none disabled:opacity-60"
+          class="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-600 focus:outline-none disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400"
         />
         <p class="mt-1 mb-4 text-xs text-gray-500">
           Shown to the user in IdApp as plain text. No identity attributes are requested.
