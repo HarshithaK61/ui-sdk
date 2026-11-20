@@ -14,6 +14,10 @@
  *   # running on the server that holds the key; copy back only the JSON):
  *   node sign-domain.mjs --stdout --domain … --address … > record.json
  *
+ *   # --dns prints the DNS TXT record (name and value) for the canonical
+ *   # address instead of writing the file:
+ *   node scripts/sign-domain.mjs --dns --domain … --address …
+ *
  * The address must be the CANONICAL address of the account that anchors this
  * site's verification requests. The key never leaves this machine; do not
  * commit it. Output: public/.well-known/ccddvr/<network_ref>_<address>.json
@@ -29,6 +33,27 @@ import {
   signMessage,
 } from '@concordium/web-sdk/types'
 
+// TODO(DNS-DOC): provisional until technical doc v0.2, must match id-app buildDnsRecordName/defaultDnsTxtValidator
+const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567'
+
+/** RFC 4648 Base32, lowercase alphabet, no padding (same as id-app base32LowerNoPad). */
+function base32LowerNoPad(bytes) {
+  let out = ''
+  let buffer = 0
+  let bits = 0
+  for (const byte of bytes) {
+    buffer = (buffer << 8) | byte
+    bits += 8
+    while (bits >= 5) {
+      out += BASE32_ALPHABET[(buffer >>> (bits - 5)) & 31]
+      bits -= 5
+    }
+    buffer &= (1 << bits) - 1
+  }
+  if (bits > 0) out += BASE32_ALPHABET[(buffer << (5 - bits)) & 31]
+  return out
+}
+
 const GENESIS = {
   mainnet: '9dd9ca4d19e9393877d2c44b70f89acbfc0883c2243e5eeaecc0d1cd0503f478',
   testnet: '4221332d34e1694168c2a0c0b3fd0f273809612cb13d000d5c2e00e85f50f796',
@@ -43,6 +68,7 @@ const { values } = parseArgs({
     key: { type: 'string', default: '0' },
     'wallet-file': { type: 'string' },
     stdout: { type: 'boolean', default: false },
+    dns: { type: 'boolean', default: false },
   },
 })
 
@@ -96,6 +122,18 @@ const record = {
   version: 1,
   address: `ccd:${networkRef}:${base58}`,
   signature: Buffer.from(JSON.stringify(signatureMap), 'utf8').toString('base64'),
+}
+
+if (values.dns) {
+  // TODO(DNS-DOC): provisional until technical doc v0.2, must match id-app buildDnsRecordName/defaultDnsTxtValidator
+  const name = `_ccddvr.${base32LowerNoPad(AccountAddress.toBuffer(address))}.${networkRef}.${domain}`
+  console.log(`name:  ${name}`)
+  console.log('type:  TXT')
+  console.log(`value: ${record.signature}`)
+  if (record.signature.length > 255) {
+    console.error('sign-domain: value exceeds 255 characters; split it into several quoted strings at your DNS host')
+  }
+  process.exit(0)
 }
 
 if (values.stdout) {
