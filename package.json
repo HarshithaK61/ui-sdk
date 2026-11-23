@@ -9,6 +9,7 @@
     "generate:local": "cross-env NODE_ENV=development BASE_URL=/ nuxi generate",
     "sign:domain": "node scripts/sign-domain.mjs",
     "preview": "nuxt preview",
+    "test": "vitest run",
     "postinstall": "nuxt prepare",
     "deploy": "./deploy.sh"
   },
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "gh-pages": "^6.3.0"
+    "gh-pages": "^6.3.0",
+    "vitest": "4.1.12"
   }
 }
