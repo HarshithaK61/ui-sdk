@@ -9,13 +9,18 @@
           id="consent-message"
           v-model="consentMessage"
           rows="4"
-          maxlength="1000"
           :disabled="isVerifying"
+          :aria-invalid="Boolean(consentError)"
+          aria-describedby="consent-counter consent-error"
           placeholder="Type the message the user approves in ID App"
           class="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-600 focus:outline-none disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400"
         />
         <p class="mt-1 mb-3 text-xs text-gray-500">
           Shown to the user in IdApp as plain text.
+          <span id="consent-counter" class="ml-1">{{ consentCounter }}</span>
+        </p>
+        <p v-if="consentError" id="consent-error" role="alert" class="-mt-2 mb-3 text-sm text-red-600">
+          {{ consentError }}
         </p>
 
         <label for="request-age-proof" class="mb-4 flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
@@ -31,13 +36,14 @@
 
         <button
           @click="startBackendManagedVerification()"
-          :disabled="isVerifying || !hasConsentMessage"
+          :disabled="isVerifying"
+          :aria-disabled="!consentValidation.ok"
           :class="[
             'px-6 py-2 rounded-lg font-medium transition-colors border',
             isVerifying || isVerified
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50',
-            isVerifying || !hasConsentMessage ? 'cursor-not-allowed opacity-80' : '',
+            isVerifying || !consentValidation.ok ? 'cursor-not-allowed opacity-80' : '',
           ]"
         >
           {{ isVerified ? "Consent given" : (isVerifying ? "Waiting for consent..." : "Request consent") }}
@@ -52,10 +58,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from "vue";
+import { ref, computed, watch, onBeforeUnmount } from "vue";
 import { ConcordiumVerificationWebUI } from "@concordium/verification-web-ui";
 import "@concordium/verification-web-ui/styles";
 import { useChallengePresentation } from "~/composables/useChallengePresentation";
+import { CONSENT_MAX_LENGTH, validateConsentMessage } from "~/utils/consent";
 import type {
   ConsentProofContextDetails,
   VerificationStatus,
@@ -65,7 +72,23 @@ import type {
 const DEFAULT_CONSENT_MESSAGE =
   "I confirm with my Concordium ID App that I approve this request from 3P Account Wallet Demo.";
 const consentMessage = ref(DEFAULT_CONSENT_MESSAGE);
-const hasConsentMessage = computed(() => consentMessage.value.trim().length > 0);
+const consentValidation = computed(() => validateConsentMessage(consentMessage.value, "text"));
+const CONSENT_ERRORS = {
+  CONSENT_EMPTY: "Enter a consent message.",
+  CONSENT_TOO_LONG: `The consent message must be ${CONSENT_MAX_LENGTH.toLocaleString("en-GB")} characters or fewer.`,
+  CONSENT_UNSAFE_CHARACTERS:
+    "The consent message contains hidden or control characters. Remove them and try again.",
+};
+// Shown after the first edit or a blocked submit, and cleared as soon as the text is valid.
+const showConsentError = ref(false);
+watch(consentMessage, () => (showConsentError.value = true));
+const consentError = computed(() => {
+  const validation = consentValidation.value;
+  return showConsentError.value && !validation.ok ? CONSENT_ERRORS[validation.reason] : null;
+});
+const consentCounter = computed(
+  () => `${consentValidation.value.length.toLocaleString("en-GB")} / ${CONSENT_MAX_LENGTH.toLocaleString("en-GB")}`,
+);
 // Unchecked (the default) sends consent only; checked adds a fixed age >= 18 proof.
 const requestAgeProof = ref(false);
 const AGE_PROOF_CONTEXT_DETAILS: ConsentProofContextDetails = {
@@ -238,7 +261,12 @@ const handleVerificationStatus = async (statusResponse: VerificationStatusRespon
 };
 
 const startBackendManagedVerification = async () => {
-  if (isVerifying.value || !hasConsentMessage.value) {
+  if (isVerifying.value) {
+    return;
+  }
+
+  if (!consentValidation.value.ok) {
+    showConsentError.value = true;
     return;
   }
 
