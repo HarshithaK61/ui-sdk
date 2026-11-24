@@ -168,7 +168,8 @@ const handleChallengeAndPresentationRequest = async (sessionData: any) => {
       sessionData,
     );
 
-    const challengeData = await requestChallengeFromBackend();
+    // ConnectionID must be this session's topic or IdApp refuses the request.
+    const challengeData = await requestChallengeFromBackend(sessionData?.topic);
     trace("challenge_request_done", { traceId, hasChallenge: Boolean(challengeData) });
     await sendPresentationRequest(challengeData, sessionData, traceId);
   } catch (error) {

@@ -1,5 +1,9 @@
 import { useVerification } from "~/composables/useVerification";
-import type { CreateVerificationResponse, VerificationStatusResponse } from "~/services/api.service";
+import type {
+  ConsentProofContextDetails,
+  CreateVerificationResponse,
+  VerificationStatusResponse,
+} from "~/services/api.service";
 import type { Ref } from "vue";
 
 interface VerificationStatusPollingOptions {
@@ -17,6 +21,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const useChallengePresentation = (sdk: Ref<any>) => {
   const {
     createVerificationRequest,
+    createConsentVerificationRequest,
     getVerificationStatus,
     requestChallenge,
     verifyProof,
@@ -35,6 +40,13 @@ export const useChallengePresentation = (sdk: Ref<any>) => {
 
     console.log("Verification request created:", verificationRequest);
     return verificationRequest;
+  };
+
+  const createConsentVerificationRequestFromBackend = async (
+    consentMessage: string,
+    contextDetails?: ConsentProofContextDetails,
+  ): Promise<CreateVerificationResponse> => {
+    return createConsentVerificationRequest(consentMessage, "testnet", contextDetails);
   };
 
   const stopVerificationStatusPolling = () => {
@@ -95,12 +107,14 @@ export const useChallengePresentation = (sdk: Ref<any>) => {
   };
 
   // Step 1: Request challenge from backend
-  const requestChallengeFromBackend = async () => {
+  // connectionId: the WalletConnect session topic the request will be sent on.
+  const requestChallengeFromBackend = async (connectionId?: string) => {
     const challengeData = await requestChallenge(
       "IDProofVerificationByIdapp",
       "testnet",
       18,
       "gte",
+      connectionId,
     );
     console.log("Challenge data received:", challengeData);
     return challengeData;
@@ -128,6 +142,7 @@ export const useChallengePresentation = (sdk: Ref<any>) => {
 
   return {
     createVerificationRequestFromBackend,
+    createConsentVerificationRequestFromBackend,
     pollVerificationStatusFromBackend,
     stopVerificationStatusPolling,
     requestChallengeFromBackend,

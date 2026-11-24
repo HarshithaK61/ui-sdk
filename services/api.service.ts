@@ -37,6 +37,8 @@ export interface ChallengeRequest {
     age: number;
     operator: 'gte' | 'lte' | 'eq';
     proofType: string[];
+    /** WalletConnect session topic; IdApp checks it against its own session. */
+    connectionId?: string;
   };
 }
 
@@ -48,6 +50,21 @@ export interface CreateVerificationRequest {
     operator: 'gte' | 'lte' | 'eq';
     proofType: string[];
   };
+}
+
+/** Identity proofs requested together with a consent message. */
+export interface ConsentProofContextDetails {
+  age: number;
+  operator: 'gte' | 'lte' | 'eq';
+  proofType: string[];
+}
+
+export interface CreateConsentVerificationRequest {
+  network: 'mainnet' | 'testnet';
+  /** Plain text the user approves in IdApp. */
+  consentMessage: string;
+  /** Omit for consent only; set to also request these identity proofs. */
+  contextDetails?: ConsentProofContextDetails;
 }
 
 export interface CreateVerificationResponse {
@@ -149,6 +166,18 @@ export class ApiService {
     request: CreateVerificationRequest
   ): Promise<CreateVerificationResponse> {
     return this.makeRequest<CreateVerificationResponse>('/api/v1/verifications', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Create a consent-only verification request (WalletConnect pairing URI + polling id).
+   */
+  async createConsentVerificationRequest(
+    request: CreateConsentVerificationRequest
+  ): Promise<CreateVerificationResponse> {
+    return this.makeRequest<CreateVerificationResponse>('/api/v1/verifications/consent', {
       method: 'POST',
       body: JSON.stringify(request),
     });
