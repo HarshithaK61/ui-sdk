@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   CONSENT_MAX_LENGTH,
+  DEFAULT_CONSENT_MESSAGE,
+  DEFAULT_MARKDOWN_CONSENT_MESSAGE,
+  messageForFormat,
   UNSAFE_CONSENT_CHARACTERS,
   validateConsentMessage,
   type ConsentFormat,
@@ -78,4 +81,33 @@ describe('UNSAFE_CONSENT_CHARACTERS', () => {
       expect(UNSAFE_CONSENT_CHARACTERS.test(char)).toBe(false)
     },
   )
+})
+
+describe('messageForFormat', () => {
+  it('swaps the untouched plain default for the markdown sample', () => {
+    expect(messageForFormat(DEFAULT_CONSENT_MESSAGE, 'markdown')).toBe(DEFAULT_MARKDOWN_CONSENT_MESSAGE)
+  })
+
+  it('fills an empty message with the markdown sample', () => {
+    expect(messageForFormat('  ', 'markdown')).toBe(DEFAULT_MARKDOWN_CONSENT_MESSAGE)
+  })
+
+  it('restores the plain default from the untouched markdown sample', () => {
+    expect(messageForFormat(DEFAULT_MARKDOWN_CONSENT_MESSAGE, 'text')).toBe(DEFAULT_CONSENT_MESSAGE)
+  })
+
+  it('never overwrites typed text', () => {
+    expect(messageForFormat('My own words', 'markdown')).toBe('My own words')
+    expect(messageForFormat('My own words', 'text')).toBe('My own words')
+  })
+
+  it('leaves the plain default alone when switching to text', () => {
+    expect(messageForFormat(DEFAULT_CONSENT_MESSAGE, 'text')).toBe(DEFAULT_CONSENT_MESSAGE)
+  })
+
+  it('has the exact markdown sample with no trailing spaces', () => {
+    expect(DEFAULT_MARKDOWN_CONSENT_MESSAGE).toBe(
+      '## Payment approval\n\nYou are approving a payment of **£25.00** to *Example Shop*.\n\n- One-off payment\n- No recurring charges\n\n> You can cancel within 14 days.',
+    )
+  })
 })

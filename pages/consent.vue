@@ -35,7 +35,7 @@
         <textarea
           id="consent-message"
           v-model="consentMessage"
-          rows="4"
+          rows="8"
           :disabled="isVerifying"
           :aria-invalid="Boolean(consentError)"
           aria-describedby="consent-counter consent-error"
@@ -89,17 +89,22 @@ import { ref, computed, watch, onBeforeUnmount } from "vue";
 import { ConcordiumVerificationWebUI } from "@concordium/verification-web-ui";
 import "@concordium/verification-web-ui/styles";
 import { useChallengePresentation } from "~/composables/useChallengePresentation";
-import { CONSENT_MAX_LENGTH, validateConsentMessage, type ConsentFormat } from "~/utils/consent";
+import {
+  CONSENT_MAX_LENGTH,
+  DEFAULT_CONSENT_MESSAGE,
+  messageForFormat,
+  validateConsentMessage,
+  type ConsentFormat,
+} from "~/utils/consent";
 import type {
   ConsentProofContextDetails,
   VerificationStatus,
   VerificationStatusResponse,
 } from "~/services/api.service";
 
-const DEFAULT_CONSENT_MESSAGE =
-  "I confirm with my Concordium ID App that I approve this request from 3P Account Wallet Demo.";
 const consentMessage = ref(DEFAULT_CONSENT_MESSAGE);
 const consentFormat = ref<ConsentFormat>("text");
+watch(consentFormat, (format) => (consentMessage.value = messageForFormat(consentMessage.value, format)));
 const CONSENT_FORMAT_HINTS: Record<ConsentFormat, string> = {
   text: "Shown to the user in ID App as plain text.",
   markdown:

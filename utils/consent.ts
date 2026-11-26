@@ -27,3 +27,27 @@ export function validateConsentMessage(message: string, _format: ConsentFormat):
   if (UNSAFE_CONSENT_CHARACTERS.test(message)) return { ok: false, reason: 'CONSENT_UNSAFE_CHARACTERS', length }
   return { ok: true, length }
 }
+
+export const DEFAULT_CONSENT_MESSAGE =
+  'I confirm with my Concordium ID App that I approve this request from 3P Account Wallet Demo.'
+
+export const DEFAULT_MARKDOWN_CONSENT_MESSAGE = [
+  '## Payment approval',
+  '',
+  'You are approving a payment of **£25.00** to *Example Shop*.',
+  '',
+  '- One-off payment',
+  '- No recurring charges',
+  '',
+  '> You can cancel within 14 days.',
+].join('\n')
+
+/**
+ * The message to show after the format changes. Only an empty message or the
+ * untouched sample of the other format is swapped; typed text is kept.
+ */
+export function messageForFormat(message: string, format: ConsentFormat): string {
+  const untouchedSample = format === 'markdown' ? DEFAULT_CONSENT_MESSAGE : DEFAULT_MARKDOWN_CONSENT_MESSAGE
+  const sampleForFormat = format === 'markdown' ? DEFAULT_MARKDOWN_CONSENT_MESSAGE : DEFAULT_CONSENT_MESSAGE
+  return message.trim() === '' || message === untouchedSample ? sampleForFormat : message
+}
