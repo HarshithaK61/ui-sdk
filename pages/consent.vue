@@ -5,6 +5,33 @@
         <label for="consent-message" class="block text-sm font-medium text-gray-900 mb-2">
           Consent message
         </label>
+        <fieldset class="mb-2 flex items-center gap-4 text-sm text-gray-900 dark:text-gray-100">
+          <legend class="sr-only">Message format</legend>
+          <label for="consent-format-text" class="flex items-center gap-2">
+            <input
+              id="consent-format-text"
+              v-model="consentFormat"
+              type="radio"
+              name="consent-format"
+              value="text"
+              :disabled="isVerifying"
+              class="h-4 w-4 accent-green-500 disabled:opacity-60"
+            />
+            Plain text
+          </label>
+          <label for="consent-format-markdown" class="flex items-center gap-2">
+            <input
+              id="consent-format-markdown"
+              v-model="consentFormat"
+              type="radio"
+              name="consent-format"
+              value="markdown"
+              :disabled="isVerifying"
+              class="h-4 w-4 accent-green-500 disabled:opacity-60"
+            />
+            Markdown
+          </label>
+        </fieldset>
         <textarea
           id="consent-message"
           v-model="consentMessage"
@@ -16,7 +43,7 @@
           class="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-600 focus:outline-none disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400"
         />
         <p class="mt-1 mb-3 text-xs text-gray-500">
-          Shown to the user in IdApp as plain text.
+          {{ consentFormatHint }}
           <span id="consent-counter" class="ml-1">{{ consentCounter }}</span>
         </p>
         <p v-if="consentError" id="consent-error" role="alert" class="-mt-2 mb-3 text-sm text-red-600">
@@ -62,7 +89,7 @@ import { ref, computed, watch, onBeforeUnmount } from "vue";
 import { ConcordiumVerificationWebUI } from "@concordium/verification-web-ui";
 import "@concordium/verification-web-ui/styles";
 import { useChallengePresentation } from "~/composables/useChallengePresentation";
-import { CONSENT_MAX_LENGTH, validateConsentMessage } from "~/utils/consent";
+import { CONSENT_MAX_LENGTH, validateConsentMessage, type ConsentFormat } from "~/utils/consent";
 import type {
   ConsentProofContextDetails,
   VerificationStatus,
@@ -72,7 +99,14 @@ import type {
 const DEFAULT_CONSENT_MESSAGE =
   "I confirm with my Concordium ID App that I approve this request from 3P Account Wallet Demo.";
 const consentMessage = ref(DEFAULT_CONSENT_MESSAGE);
-const consentValidation = computed(() => validateConsentMessage(consentMessage.value, "text"));
+const consentFormat = ref<ConsentFormat>("text");
+const CONSENT_FORMAT_HINTS: Record<ConsentFormat, string> = {
+  text: "Shown to the user in ID App as plain text.",
+  markdown:
+    "Shown in ID App as formatted text: headings, bold, italic, lists, quotes and code. Links and images show as text.",
+};
+const consentFormatHint = computed(() => CONSENT_FORMAT_HINTS[consentFormat.value]);
+const consentValidation = computed(() => validateConsentMessage(consentMessage.value, consentFormat.value));
 const CONSENT_ERRORS = {
   CONSENT_EMPTY: "Enter a consent message.",
   CONSENT_TOO_LONG: `The consent message must be ${CONSENT_MAX_LENGTH.toLocaleString("en-GB")} characters or fewer.`,
@@ -283,6 +317,7 @@ const startBackendManagedVerification = async () => {
     const verificationRequest = await createConsentVerificationRequestFromBackend(
       consentMessage.value,
       requestAgeProof.value ? AGE_PROOF_CONTEXT_DETAILS : undefined,
+      consentFormat.value,
     );
     currentVerificationId.value = verificationRequest.verificationId;
     trace("verification_create_done", {

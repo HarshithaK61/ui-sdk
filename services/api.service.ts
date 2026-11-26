@@ -59,10 +59,14 @@ export interface ConsentProofContextDetails {
   proofType: string[];
 }
 
+import type { ConsentFormat } from '~/utils/consent';
+
 export interface CreateConsentVerificationRequest {
   network: 'mainnet' | 'testnet';
-  /** Plain text the user approves in IdApp. */
+  /** Text the user approves in ID App. */
   consentMessage: string;
+  /** How ID App renders the message. The backend defaults to 'text'. */
+  consentFormat?: ConsentFormat;
   /** Omit for consent only; set to also request these identity proofs. */
   contextDetails?: ConsentProofContextDetails;
 }

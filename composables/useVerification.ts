@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import type { SessionTypes } from '@walletconnect/types';
 import { createApiService } from '~/services/api.service';
+import type { ConsentFormat } from '~/utils/consent';
 import type {
   ChallengeResponse,
   ConsentProofContextDetails,
@@ -61,7 +62,8 @@ export const useVerification = () => {
   const createConsentVerificationRequest = async (
     consentMessage: string,
     network: 'mainnet' | 'testnet' = 'testnet',
-    contextDetails?: ConsentProofContextDetails
+    contextDetails?: ConsentProofContextDetails,
+    consentFormat?: ConsentFormat
   ): Promise<CreateVerificationResponse> => {
     try {
       verificationError.value = null;
@@ -70,6 +72,7 @@ export const useVerification = () => {
       const verificationRequest = await apiService.createConsentVerificationRequest({
         network,
         consentMessage,
+        ...(consentFormat ? { consentFormat } : {}),
         ...(contextDetails ? { contextDetails } : {}),
       });
 
